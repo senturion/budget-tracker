@@ -269,7 +269,11 @@ export const UploadZone: React.FC = () => {
               <p className="text-lg text-text-primary mb-2">
                 Drag and drop your CSV file here, or
               </p>
-              <label>
+              <label className={`inline-block px-4 py-2 rounded font-medium transition-all duration-200 focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/50 focus-within:ring-offset-2 focus-within:ring-offset-background cursor-pointer ${
+                isProcessing
+                  ? 'opacity-50 cursor-not-allowed bg-primary text-background-alt'
+                  : 'bg-primary text-background-alt hover:bg-primary-light hover:shadow-glow-md font-display'
+              }`}>
                 <input
                   type="file"
                   accept=".csv"
@@ -277,9 +281,7 @@ export const UploadZone: React.FC = () => {
                   className="hidden"
                   disabled={isProcessing}
                 />
-                <span className="inline-block">
-                  <Button disabled={isProcessing}>Choose File</Button>
-                </span>
+                Choose File
               </label>
             </div>
             <p className="text-sm text-text-secondary">
