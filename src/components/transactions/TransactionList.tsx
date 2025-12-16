@@ -20,6 +20,8 @@ export const TransactionList: React.FC = () => {
   const [newMerchantName, setNewMerchantName] = useState('');
   const [isRecategorizing, setIsRecategorizing] = useState(false);
   const [recategorizeStatus, setRecategorizeStatus] = useState<string>('');
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
 
   const accountFilteredTransactions = useMemo(
     () => filterTransactionsByAccount(transactions, selectedAccountId),
@@ -155,6 +157,59 @@ export const TransactionList: React.FC = () => {
     setEditingType(false);
   };
 
+  const handleToggleTransaction = (txId: string) => {
+    const newSelected = new Set(selectedTransactionIds);
+    if (newSelected.has(txId)) {
+      newSelected.delete(txId);
+    } else {
+      newSelected.add(txId);
+    }
+    setSelectedTransactionIds(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedTransactionIds.size === filteredTransactions.length) {
+      setSelectedTransactionIds(new Set());
+    } else {
+      setSelectedTransactionIds(new Set(filteredTransactions.map(tx => tx.id)));
+    }
+  };
+
+  const handleBulkTypeChange = async (newType: string) => {
+    const updates: Partial<Transaction> = {
+      type: newType as any,
+    };
+
+    if (newType === 'TRANSFER' || newType === 'ADJUSTMENT') {
+      updates.affectsBudget = false;
+    } else {
+      updates.affectsBudget = true;
+    }
+
+    for (const txId of selectedTransactionIds) {
+      await updateTransactionInDb(txId, updates);
+      updateTransaction(txId, updates);
+    }
+
+    setSelectedTransactionIds(new Set());
+    setShowBulkEditModal(false);
+  };
+
+  const handleBulkCategoryChange = async (newCategory: string) => {
+    const updates = {
+      category: newCategory,
+      categorySource: 'manual' as const,
+    };
+
+    for (const txId of selectedTransactionIds) {
+      await updateTransactionInDb(txId, updates);
+      updateTransaction(txId, updates);
+    }
+
+    setSelectedTransactionIds(new Set());
+    setShowBulkEditModal(false);
+  };
+
   const handleRecategorizeAll = async () => {
     if (!settings?.apiKey) {
       setRecategorizeStatus('⚠️ No API key configured. Please add one in Settings.');
@@ -270,10 +325,19 @@ export const TransactionList: React.FC = () => {
           >
             {isRecategorizing ? 'Categorizing...' : 'Recategorize All with AI'}
           </Button>
+          {selectedTransactionIds.size > 0 && (
+            <Button
+              onClick={() => setShowBulkEditModal(true)}
+              variant="primary"
+            >
+              Edit {selectedTransactionIds.size} Selected
+            </Button>
+          )}
         </div>
         <div className="flex items-center justify-between">
           <div className="text-sm text-text-secondary">
             Showing {filteredTransactions.length} of {transactions.length} transactions
+            {selectedTransactionIds.size > 0 && ` · ${selectedTransactionIds.size} selected`}
           </div>
           {recategorizeStatus && (
             <div className="text-sm text-text-primary">
@@ -288,6 +352,14 @@ export const TransactionList: React.FC = () => {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
+                <th className="py-3 px-2 w-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedTransactionIds.size === filteredTransactions.length && filteredTransactions.length > 0}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                </th>
                 <th
                   className="text-left py-3 px-2 text-text-secondary cursor-pointer hover:text-text-primary"
                   onClick={() => handleSort('date')}
@@ -307,6 +379,14 @@ export const TransactionList: React.FC = () => {
             <tbody>
               {filteredTransactions.map((tx) => (
                 <tr key={tx.id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                  <td className="py-3 px-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedTransactionIds.has(tx.id)}
+                      onChange={() => handleToggleTransaction(tx.id)}
+                      className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                    />
+                  </td>
                   <td className="py-3 px-2 text-text-primary">{formatDate(tx.date)}</td>
                   <td className="py-3 px-2">
                     <div className="text-text-primary">{tx.description}</div>
@@ -477,6 +557,71 @@ export const TransactionList: React.FC = () => {
             </p>
           </div>
         )}
+      </Modal>
+
+      {/* Bulk Edit Modal */}
+      <Modal
+        isOpen={showBulkEditModal}
+        onClose={() => setShowBulkEditModal(false)}
+        title={`Edit ${selectedTransactionIds.size} Transactions`}
+      >
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-sm font-semibold text-text-primary mb-3">Change Transaction Type</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => handleBulkTypeChange('EXPENSE')}
+              >
+                Set as Expense
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleBulkTypeChange('INFLOW')}
+              >
+                Set as Income
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleBulkTypeChange('TRANSFER')}
+              >
+                Set as Transfer
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleBulkTypeChange('ADJUSTMENT')}
+              >
+                Set as Adjustment
+              </Button>
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-6">
+            <h3 className="text-sm font-semibold text-text-primary mb-3">Change Category</h3>
+            <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+              {(settings?.defaultCategories || []).map((category) => (
+                <Button
+                  key={category}
+                  variant="secondary"
+                  onClick={() => handleBulkCategoryChange(category)}
+                  className="justify-start text-left"
+                >
+                  {category}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          <div className="border-t border-border pt-6 flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setShowBulkEditModal(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
