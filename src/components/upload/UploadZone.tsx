@@ -35,7 +35,7 @@ export const UploadZone: React.FC = () => {
     setIsDragging(false);
   }, []);
 
-  const processFile = useCallback(async (file: File) => {
+  const processFile = async (file: File) => {
     if (!file.name.endsWith('.csv')) {
       setStatus('Please upload a CSV file');
       return;
@@ -166,26 +166,23 @@ export const UploadZone: React.FC = () => {
       setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsProcessing(false);
     }
-  }, [uploadAccountId, accounts, settings, transactions, addToStore, loadData]);
+  };
 
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragging(false);
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
 
-      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        processFile(e.dataTransfer.files[0]);
-      }
-    },
-    [processFile]
-  );
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFile(e.dataTransfer.files[0]);
+    }
+  };
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processFile(e.target.files[0]);
     }
-  }, [processFile]);
+  };
 
   const uploadTargetAccount = uploadAccountId
     ? accounts.find(a => a.id === uploadAccountId)
