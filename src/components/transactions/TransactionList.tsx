@@ -16,6 +16,7 @@ export const TransactionList: React.FC = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editingMerchant, setEditingMerchant] = useState(false);
+  const [editingType, setEditingType] = useState(false);
   const [newMerchantName, setNewMerchantName] = useState('');
   const [isRecategorizing, setIsRecategorizing] = useState(false);
   const [recategorizeStatus, setRecategorizeStatus] = useState<string>('');
@@ -123,6 +124,35 @@ export const TransactionList: React.FC = () => {
   const handleCancelMerchantEdit = () => {
     setEditingMerchant(false);
     setNewMerchantName('');
+  };
+
+  const handleStartTypeEdit = () => {
+    setEditingType(true);
+  };
+
+  const handleTypeChange = async (newType: string) => {
+    if (!editingTransaction) return;
+
+    const updates: Partial<Transaction> = {
+      type: newType as any,
+    };
+
+    // If changing to TRANSFER or ADJUSTMENT, set affectsBudget to false
+    if (newType === 'TRANSFER' || newType === 'ADJUSTMENT') {
+      updates.affectsBudget = false;
+    } else {
+      updates.affectsBudget = true;
+    }
+
+    await updateTransactionInDb(editingTransaction.id, updates);
+    updateTransaction(editingTransaction.id, updates);
+
+    setEditingType(false);
+    setEditingTransaction(null);
+  };
+
+  const handleCancelTypeEdit = () => {
+    setEditingType(false);
   };
 
   const handleRecategorizeAll = async () => {
@@ -311,12 +341,60 @@ export const TransactionList: React.FC = () => {
         onClose={() => {
           setEditingTransaction(null);
           setEditingMerchant(false);
+          setEditingType(false);
         }}
-        title={editingMerchant ? "Rename Merchant" : "Change Category"}
+        title={editingMerchant ? "Rename Merchant" : editingType ? "Change Transaction Type" : "Change Category"}
       >
         {editingTransaction && (
           <div>
-            {editingMerchant ? (
+            {editingType ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-text-secondary mb-2">Current Type</p>
+                  <p className="text-text-primary font-medium">{editingTransaction.type}</p>
+                </div>
+                <div>
+                  <label className="block text-sm text-text-secondary mb-3">Select Transaction Type:</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant={editingTransaction.type === 'EXPENSE' ? 'primary' : 'secondary'}
+                      onClick={() => handleTypeChange('EXPENSE')}
+                    >
+                      Expense
+                    </Button>
+                    <Button
+                      variant={editingTransaction.type === 'INFLOW' ? 'primary' : 'secondary'}
+                      onClick={() => handleTypeChange('INFLOW')}
+                    >
+                      Income/Payment
+                    </Button>
+                    <Button
+                      variant={editingTransaction.type === 'TRANSFER' ? 'primary' : 'secondary'}
+                      onClick={() => handleTypeChange('TRANSFER')}
+                    >
+                      Transfer
+                    </Button>
+                    <Button
+                      variant={editingTransaction.type === 'ADJUSTMENT' ? 'primary' : 'secondary'}
+                      onClick={() => handleTypeChange('ADJUSTMENT')}
+                    >
+                      Adjustment
+                    </Button>
+                  </div>
+                  <p className="text-xs text-text-muted mt-3">
+                    • <strong>Expense:</strong> Spending that affects your budget<br />
+                    • <strong>Income/Payment:</strong> Money received (salary, refunds, etc.)<br />
+                    • <strong>Transfer:</strong> Moving money between accounts (net-zero)<br />
+                    • <strong>Adjustment:</strong> Balance corrections (doesn't affect net worth)
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="secondary" onClick={handleCancelTypeEdit}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : editingMerchant ? (
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-text-secondary mb-2">Current Name</p>
@@ -363,13 +441,22 @@ export const TransactionList: React.FC = () => {
                       Rename
                     </button>
                   </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <p className="text-xs text-text-secondary">Type: {editingTransaction.type}</p>
+                    <button
+                      onClick={handleStartTypeEdit}
+                      className="text-xs text-primary hover:text-primary/80 underline"
+                    >
+                      Change Type
+                    </button>
+                  </div>
                 </div>
                 <div className="mb-4">
                   <p className="text-sm text-text-secondary mb-3">Select a category:</p>
                 </div>
               </>
             )}
-            {!editingMerchant && (
+            {!editingMerchant && !editingType && (
               <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
                 {(settings?.defaultCategories || []).map((category) => (
                   <Button
