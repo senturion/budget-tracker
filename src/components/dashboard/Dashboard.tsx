@@ -13,7 +13,7 @@ import { Button } from '../common/Button';
 import type { CategorySpending } from '../../types';
 
 export const Dashboard: React.FC = () => {
-  const { transactions, budgets, selectedMonth, selectedAccountId, accounts, setSelectedMonth, setCurrentView } = useStore();
+  const { transactions, budgets, selectedMonth, selectedAccountId, accounts, setSelectedMonth, setCurrentView, setTransactionCategoryFilter } = useStore();
 
   const filteredTransactions = useMemo(
     () => filterTransactionsByAccount(transactions, selectedAccountId),
@@ -96,7 +96,8 @@ export const Dashboard: React.FC = () => {
     setSelectedMonth(new Date());
   };
 
-  const handleCategoryClick = () => {
+  const handleCategoryClick = (category: string) => {
+    setTransactionCategoryFilter(category);
     setCurrentView('transactions');
   };
 
