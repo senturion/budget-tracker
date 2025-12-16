@@ -1,6 +1,7 @@
 import Papa from 'papaparse';
 import { v4 as uuidv4 } from 'uuid';
 import type { Transaction, CSVRow } from '../types';
+import { TransactionType } from '../types';
 
 export interface ParsedCSV {
   transactions: Transaction[];
@@ -56,15 +57,22 @@ export function parseCSV(file: File, accountId: string): Promise<ParsedCSV> {
             // Extract merchant name from description
             const merchant = cleanMerchantName(description);
 
+            // Determine transaction type:
+            // - Positive amounts (charges) are EXPENSE
+            // - Negative amounts (credits/payments) are INFLOW
+            // Note: Transfers will need to be manually created or identified
+            const type = amount > 0 ? TransactionType.EXPENSE : TransactionType.INFLOW;
+
             const transaction: Transaction = {
               id: uuidv4(),
+              type,
               accountId,
               date: date.toISOString(),
               description,
               merchant,
-              amount,
-              category: 'Uncategorized',
-              categorySource: 'manual',
+              amount: Math.abs(amount), // Amount is always positive
+              category: null, // Will be set by AI categorization or manual input
+              affectsBudget: true, // Default to true, can be changed manually
               importedAt: new Date().toISOString(),
               sourceFile: file.name,
             };

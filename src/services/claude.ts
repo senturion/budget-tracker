@@ -1,24 +1,37 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { SpendingSummary } from '../types';
+import type { SpendingSummary, Transaction } from '../types';
+import { TransactionType, IncomeClass, EXPENSE_CATEGORIES, INCOME_CATEGORIES } from '../types';
 
 const MODEL = 'claude-sonnet-4-5-20250929';
 
+export interface CategorizationResult {
+  category: string;
+  incomeClass?: IncomeClass; // Only for INFLOW transactions
+}
+
 export async function categorizeTransactions(
   apiKey: string,
-  transactions: string[],
-  categories: string[]
-): Promise<Record<string, string>> {
+  transactions: Transaction[]
+): Promise<Record<string, CategorizationResult>> {
   const client = new Anthropic({
     apiKey,
     dangerouslyAllowBrowser: true, // Required for browser usage
   });
 
-  const prompt = `Categorize these credit card transactions into the provided categories. Return only valid JSON.
+  // Separate expenses and inflows for better categorization
+  const expenses = transactions.filter(t => t.type === TransactionType.EXPENSE);
+  const inflows = transactions.filter(t => t.type === TransactionType.INFLOW);
 
-Categories: ${categories.join(', ')}
+  const results: Record<string, CategorizationResult> = {};
+
+  // Categorize expenses
+  if (expenses.length > 0) {
+    const expensePrompt = `Categorize these EXPENSE transactions into the provided categories. Return only valid JSON.
+
+Categories: ${EXPENSE_CATEGORIES.join(', ')}
 
 Transactions:
-${transactions.map((t) => `- ${t}`).join('\n')}
+${expenses.map((t) => `- ${t.description}`).join('\n')}
 
 Return format: {"transaction_description": "Category", ...}
 Include every transaction. Use "Other" if unsure.
@@ -28,9 +41,54 @@ Important context:
 - SQ *EQUATOR, SQ *BRIDGEHEAD, STARBUCKS are coffee shops
 - UBER CANADA/UBEREATS, UBER EATS are food delivery
 - American Eagle, Aerie, Old Navy are clothing stores
-- PAYMENT - THANK YOU are credit card payments
 - OVERLIMIT FEE, INTEREST CHARGE are fees and interest`;
 
+    const expenseResults = await callClaude(client, expensePrompt);
+    for (const [desc, category] of Object.entries(expenseResults)) {
+      results[desc] = { category };
+    }
+  }
+
+  // Categorize inflows with income class detection
+  if (inflows.length > 0) {
+    const inflowPrompt = `Categorize these INFLOW (income/credit) transactions. For each, provide:
+1. Category from the list
+2. Income class: EARNED (salary/wages), PASSIVE (interest/dividends/cashback), REIMBURSEMENT (refunds/returns), WINDFALL (gifts), or ADJUSTMENT
+
+Income Categories: ${INCOME_CATEGORIES.join(', ')}
+
+Transactions:
+${inflows.map((t) => `- ${t.description}`).join('\n')}
+
+Return format: {"transaction_description": {"category": "Category Name", "incomeClass": "EARNED"}, ...}
+
+Examples:
+- "PAYMENT - SALARY" -> {"category": "Income: Salary", "incomeClass": "EARNED"}
+- "REFUND - AMAZON" -> {"category": "Amazon", "incomeClass": "REIMBURSEMENT"}
+- "CASHBACK REWARD" -> {"category": "Cashback", "incomeClass": "PASSIVE"}
+- "INTEREST PAYMENT" -> {"category": "Interest", "incomeClass": "PASSIVE"}`;
+
+    const inflowResults = await callClaude(client, inflowPrompt);
+    for (const [desc, value] of Object.entries(inflowResults)) {
+      if (typeof value === 'object' && value !== null) {
+        results[desc] = {
+          category: (value as any).category,
+          incomeClass: (value as any).incomeClass as IncomeClass,
+        };
+      } else {
+        // Fallback if AI returns simple string
+        results[desc] = {
+          category: value as string,
+          incomeClass: IncomeClass.EARNED, // Default
+        };
+      }
+    }
+  }
+
+  return results;
+}
+
+async function callClaude(client: Anthropic, prompt: string): Promise<Record<string, any>> {
   try {
     const response = await client.messages.create({
       model: MODEL,

@@ -1,21 +1,28 @@
 import React, { useMemo } from 'react';
 import { useStore } from '../../store';
-import { SummaryCards } from './SummaryCards';
+import { FinancialSummaryCards } from './FinancialSummaryCards';
 import { SpendingBreakdown } from './SpendingBreakdown';
+import { IncomeBreakdown } from './IncomeBreakdown';
 import { BudgetCard } from './BudgetCard';
 import { BudgetAlerts } from './BudgetAlerts';
-import { calculateSpendingSummary } from '../../utils/calculations';
+import { calculateFinancialSummary, getExpenseCategories } from '../../utils/financialCalculations';
 import { calculateAllBudgetStatuses } from '../../utils/budgetCalculations';
 import { getMonthStart, getMonthEnd, formatMonthYear, getPreviousMonth, formatCurrency } from '../../utils/formatters';
 import { filterTransactionsByAccount } from '../../utils/accountFilters';
 import { Button } from '../common/Button';
+import type { CategorySpending } from '../../types';
 
 export const Dashboard: React.FC = () => {
-  const { transactions, budgets, selectedMonth, selectedAccountId, setSelectedMonth, setCurrentView } = useStore();
+  const { transactions, budgets, selectedMonth, selectedAccountId, accounts, setSelectedMonth, setCurrentView } = useStore();
 
   const filteredTransactions = useMemo(
     () => filterTransactionsByAccount(transactions, selectedAccountId),
     [transactions, selectedAccountId]
+  );
+
+  const currentAccount = useMemo(
+    () => selectedAccountId !== 'all' ? accounts.find(a => a.id === selectedAccountId) : undefined,
+    [selectedAccountId, accounts]
   );
 
   const monthStart = useMemo(() => getMonthStart(selectedMonth), [selectedMonth]);
@@ -41,15 +48,35 @@ export const Dashboard: React.FC = () => {
     [filteredTransactions, previousMonthDates]
   );
 
-  const summary = useMemo(
-    () =>
-      calculateSpendingSummary(
-        currentMonthTransactions,
-        monthStart,
-        monthEnd,
-        previousMonthTransactions
-      ),
-    [currentMonthTransactions, monthStart, monthEnd, previousMonthTransactions]
+  const summary = useMemo(() => {
+    console.log('Dashboard Debug:', {
+      totalTransactions: currentMonthTransactions.length,
+      sampleTransactions: currentMonthTransactions.slice(0, 3).map(t => ({
+        description: t.description,
+        type: t.type,
+        amount: t.amount,
+        category: t.category,
+        affectsBudget: t.affectsBudget,
+        incomeClass: t.incomeClass
+      }))
+    });
+
+    return calculateFinancialSummary(currentMonthTransactions);
+  }, [currentMonthTransactions]);
+
+  const previousSummary = useMemo(
+    () => calculateFinancialSummary(previousMonthTransactions),
+    [previousMonthTransactions]
+  );
+
+  const previousPeriodChange = useMemo(() => {
+    if (previousSummary.expenses.total === 0) return undefined;
+    return ((summary.expenses.total - previousSummary.expenses.total) / previousSummary.expenses.total) * 100;
+  }, [summary.expenses.total, previousSummary.expenses.total]);
+
+  const categoryBreakdown: CategorySpending[] = useMemo(
+    () => getExpenseCategories(currentMonthTransactions),
+    [currentMonthTransactions]
   );
 
   const budgetStatuses = useMemo(
@@ -107,7 +134,11 @@ export const Dashboard: React.FC = () => {
 
       <BudgetAlerts budgetStatuses={budgetStatuses} />
 
-      <SummaryCards summary={summary} />
+      <FinancialSummaryCards
+        summary={summary}
+        previousPeriodChange={previousPeriodChange}
+        account={currentAccount}
+      />
 
       {budgetStatuses.length > 0 && (
         <div className="mb-6">
@@ -120,15 +151,16 @@ export const Dashboard: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <SpendingBreakdown
-            categories={summary.categoryBreakdown}
-            budgetStatuses={budgetStatuses}
-            onCategoryClick={handleCategoryClick}
-          />
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <SpendingBreakdown
+          categories={categoryBreakdown}
+          budgetStatuses={budgetStatuses}
+          onCategoryClick={handleCategoryClick}
+        />
+        <IncomeBreakdown transactions={currentMonthTransactions} />
+      </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-4">
           <div className="bg-surface border border-border rounded-lg p-6">
             <h3 className="text-lg font-semibold mb-4 text-text-primary">Quick Actions</h3>
@@ -157,11 +189,11 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          {summary.categoryBreakdown.length > 0 && (
+          {categoryBreakdown.length > 0 && (
             <div className="bg-surface border border-border rounded-lg p-6">
               <h3 className="text-lg font-semibold mb-4 text-text-primary">Top Categories</h3>
               <div className="space-y-3">
-                {summary.categoryBreakdown.slice(0, 5).map((cat) => (
+                {categoryBreakdown.slice(0, 5).map((cat) => (
                   <div key={cat.category} className="flex items-center justify-between">
                     <span className="text-text-secondary text-sm">{cat.category}</span>
                     <span className="text-text-primary font-mono text-sm font-semibold">

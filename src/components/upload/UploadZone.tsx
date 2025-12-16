@@ -35,7 +35,7 @@ export const UploadZone: React.FC = () => {
     setIsDragging(false);
   }, []);
 
-  const processFile = async (file: File) => {
+  const processFile = useCallback(async (file: File) => {
     if (!file.name.endsWith('.csv')) {
       setStatus('Please upload a CSV file');
       return;
@@ -43,6 +43,13 @@ export const UploadZone: React.FC = () => {
 
     // Check if we have a valid account selected
     const accountId = uploadAccountId || accounts.find(a => a.isDefault)?.id || accounts[0]?.id;
+
+    console.log('Upload Debug:', {
+      uploadAccountId,
+      selectedAccountId: accountId,
+      defaultAccount: accounts.find(a => a.isDefault),
+      allAccounts: accounts
+    });
 
     if (!accountId) {
       setStatus('Please create an account first in Settings');
@@ -55,6 +62,12 @@ export const UploadZone: React.FC = () => {
     try {
       // Parse CSV
       const { transactions: parsedTransactions, errors } = await parseCSV(file, accountId);
+
+      console.log('Parsed transactions sample:', parsedTransactions.slice(0, 3).map(t => ({
+        id: t.id,
+        accountId: t.accountId,
+        description: t.description
+      })));
 
       if (errors.length > 0) {
         console.warn('CSV parsing errors:', errors);
@@ -100,28 +113,30 @@ export const UploadZone: React.FC = () => {
           setStatus(`Categorizing ${uncategorized.length} transactions with AI...`);
 
           try {
-            const descriptions = uncategorized.map((tx) => tx.description);
-            const categories = settings.defaultCategories;
-
             const categorizations = await categorizeTransactions(
               settings.apiKey,
-              descriptions,
-              categories
+              uncategorized
             );
 
             // Apply categorizations and create merchant rules
             let categorizedCount = 0;
             for (const tx of uncategorized) {
-              const category = categorizations[tx.description];
-              if (category) {
-                tx.category = category;
+              const result = categorizations[tx.description];
+              if (result && result.category) {
+                tx.category = result.category;
                 tx.categorySource = 'ai';
+
+                // Set income class for INFLOW transactions
+                if (result.incomeClass) {
+                  tx.incomeClass = result.incomeClass;
+                }
+
                 categorizedCount++;
 
                 // Create merchant rule for future use
                 await addMerchantRule({
                   pattern: tx.merchant,
-                  category,
+                  category: result.category,
                   createdAt: new Date().toISOString(),
                 });
               }
@@ -151,7 +166,7 @@ export const UploadZone: React.FC = () => {
       setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setIsProcessing(false);
     }
-  };
+  }, [uploadAccountId, accounts, settings, transactions, addToStore, loadData]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -163,7 +178,7 @@ export const UploadZone: React.FC = () => {
         processFile(e.dataTransfer.files[0]);
       }
     },
-    [transactions, settings]
+    [processFile]
   );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

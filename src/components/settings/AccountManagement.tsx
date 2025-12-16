@@ -98,7 +98,7 @@ export function AccountManagement() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-3 py-2 bg-background-alt border border-border rounded-lg text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="e.g., Chase Visa, TD Checking"
+                placeholder="e.g., Chase Visa, TD Chequing"
                 required
               />
             </div>
@@ -114,7 +114,7 @@ export function AccountManagement() {
               >
                 <option value="credit">Credit Card</option>
                 <option value="debit">Debit Card</option>
-                <option value="checking">Checking Account</option>
+                <option value="chequing">Chequing Account</option>
                 <option value="savings">Savings Account</option>
                 <option value="other">Other</option>
               </select>

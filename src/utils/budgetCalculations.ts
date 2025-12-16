@@ -1,4 +1,5 @@
 import type { Budget, BudgetStatus, Transaction } from '../types';
+import { affectsSpending } from './transactionValidation';
 
 /**
  * Calculate budget status for a specific budget based on transactions
@@ -12,13 +13,14 @@ export function calculateBudgetStatus(
   const monthEnd = new Date(month.getFullYear(), month.getMonth() + 1, 0, 23, 59, 59);
 
   // Filter transactions for this category in the current month
+  // Only count EXPENSE transactions that affect budget (excludes TRANSFER, ADJUSTMENT, and INFLOW)
   const categoryTransactions = transactions.filter((tx) => {
     const txDate = new Date(tx.date);
     return (
       tx.category === budget.category &&
       txDate >= monthStart &&
       txDate <= monthEnd &&
-      tx.amount > 0 // Only count charges, not credits
+      affectsSpending(tx) // Only count expenses that affect budget
     );
   });
 

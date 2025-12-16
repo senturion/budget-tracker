@@ -10,9 +10,8 @@ import { updateTransaction as updateTransactionInDb, addMerchantRule, updateMerc
 import { categorizeTransactions } from '../../services/claude';
 
 export const TransactionList: React.FC = () => {
-  const { transactions, selectedAccountId, updateTransaction, settings, loadData } = useStore();
+  const { transactions, selectedAccountId, transactionCategoryFilter, setTransactionCategoryFilter, updateTransaction, settings, loadData } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [sortField, setSortField] = useState<'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
@@ -42,8 +41,8 @@ export const TransactionList: React.FC = () => {
       );
     }
 
-    if (selectedCategory) {
-      filtered = filtered.filter((tx) => tx.category === selectedCategory);
+    if (transactionCategoryFilter) {
+      filtered = filtered.filter((tx) => tx.category === transactionCategoryFilter);
     }
 
     // Sort
@@ -67,7 +66,7 @@ export const TransactionList: React.FC = () => {
     });
 
     return filtered;
-  }, [accountFilteredTransactions, searchTerm, selectedCategory, sortField, sortDirection]);
+  }, [accountFilteredTransactions, searchTerm, transactionCategoryFilter, sortField, sortDirection]);
 
   const handleSort = (field: 'date' | 'amount') => {
     if (sortField === field) {
@@ -223,8 +222,8 @@ export const TransactionList: React.FC = () => {
             className="flex-1 px-4 py-2 bg-background-alt/50 backdrop-blur-sm border border-border rounded text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
           />
           <select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            value={transactionCategoryFilter || ''}
+            onChange={(e) => setTransactionCategoryFilter(e.target.value || null)}
             className="px-4 py-2 bg-background-alt/50 backdrop-blur-sm border border-border rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
           >
             <option value="">All Categories</option>

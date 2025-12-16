@@ -1,4 +1,6 @@
 import type { Transaction, CategorySpending, SpendingSummary } from '../types';
+import { TransactionType, IncomeClass } from '../types';
+import { affectsSpending, affectsIncome } from './transactionValidation';
 
 export function calculateSpendingSummary(
   transactions: Transaction[],
@@ -6,28 +8,52 @@ export function calculateSpendingSummary(
   periodEnd: string,
   previousPeriodTransactions?: Transaction[]
 ): SpendingSummary {
-  // Calculate totals
+  // Calculate totals using new transaction type system
   let totalSpending = 0;
   let totalPayments = 0;
 
+  let expenseCount = 0;
+  let incomeCount = 0;
+  let otherCount = 0;
+
   transactions.forEach((tx) => {
-    if (tx.amount > 0) {
+    // Skip transactions without type (shouldn't happen after migration)
+    if (!tx.type) {
+      console.warn('Transaction missing type field:', tx);
+      return;
+    }
+
+    // Only count transactions that affect budget
+    if (affectsSpending(tx)) {
       totalSpending += tx.amount;
+      expenseCount++;
+    } else if (affectsIncome(tx)) {
+      // Only count EARNED and PASSIVE income as "payments"
+      totalPayments += tx.amount;
+      incomeCount++;
     } else {
-      totalPayments += Math.abs(tx.amount);
+      otherCount++;
     }
   });
 
   const netChange = totalSpending - totalPayments;
 
-  // Calculate category breakdown
+  console.log('Spending Summary:', {
+    totalTransactions: transactions.length,
+    expenses: { count: expenseCount, total: totalSpending },
+    income: { count: incomeCount, total: totalPayments },
+    other: { count: otherCount },
+    netChange
+  });
+
+  // Calculate category breakdown - only expenses that affect budget
   const categoryMap = new Map<string, { amount: number; count: number }>();
 
   transactions
-    .filter((tx) => tx.amount > 0) // Only count spending, not payments
+    .filter((tx) => affectsSpending(tx) && tx.category) // Only count spending transactions with categories
     .forEach((tx) => {
-      const existing = categoryMap.get(tx.category) || { amount: 0, count: 0 };
-      categoryMap.set(tx.category, {
+      const existing = categoryMap.get(tx.category!) || { amount: 0, count: 0 };
+      categoryMap.set(tx.category!, {
         amount: existing.amount + tx.amount,
         count: existing.count + 1,
       });
@@ -46,7 +72,7 @@ export function calculateSpendingSummary(
   let previousPeriodChange: number | undefined;
   if (previousPeriodTransactions) {
     const prevSpending = previousPeriodTransactions
-      .filter((tx) => tx.amount > 0)
+      .filter((tx) => affectsSpending(tx))
       .reduce((sum, tx) => sum + tx.amount, 0);
 
     if (prevSpending > 0) {
@@ -94,13 +120,15 @@ export function calculateMonthlyTrends(
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
     const monthTransactions = grouped.get(monthKey) || [];
-    const monthSpending = monthTransactions.filter((tx) => tx.amount > 0);
+    const monthSpending = monthTransactions.filter((tx) => affectsSpending(tx));
 
     const total = monthSpending.reduce((sum, tx) => sum + tx.amount, 0);
 
     const categories: Record<string, number> = {};
     monthSpending.forEach((tx) => {
-      categories[tx.category] = (categories[tx.category] || 0) + tx.amount;
+      if (tx.category) {
+        categories[tx.category] = (categories[tx.category] || 0) + tx.amount;
+      }
     });
 
     trends.push({

@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie';
 import type { Transaction, MerchantRule, Budget, AppSettings, Account } from '../types';
+import { TransactionType, IncomeClass } from '../types';
 
 class BudgetTrackerDatabase extends Dexie {
   transactions!: Table<Transaction>;
@@ -71,6 +72,57 @@ class BudgetTrackerDatabase extends Dexie {
               accountId: 'default-account',
             });
           }
+        }
+      });
+
+    // Add transaction type system and proper money movement tracking
+    this.version(4)
+      .stores({
+        transactions: 'id, accountId, toAccountId, type, date, category, merchant, amount, importedAt, affectsBudget',
+        merchantRules: '++id, pattern, category',
+        budgets: 'id, category, accountId',
+        settings: 'id',
+        accounts: 'id, name, isDefault',
+      })
+      .upgrade(async (tx) => {
+        // Migrate existing transactions to new model
+        const transactions = await tx.table('transactions').toArray();
+
+        for (const transaction of transactions) {
+          const updates: Partial<Transaction> = {
+            // Determine transaction type based on amount and category
+            type: transaction.amount < 0 ? TransactionType.INFLOW : TransactionType.EXPENSE,
+
+            // Make amount always positive
+            amount: Math.abs(transaction.amount),
+
+            // Set budget impact (true for expenses and income)
+            affectsBudget: true,
+
+            // Set category to null if it was 'Uncategorized'
+            category: transaction.category === 'Uncategorized' ? null : transaction.category,
+          };
+
+          // If this is an inflow (was negative amount), determine income class
+          if (transaction.amount < 0) {
+            // Try to infer income class from category
+            const category = transaction.category?.toLowerCase() || '';
+            if (category.includes('salary') || category.includes('wage') || category.includes('income')) {
+              updates.incomeClass = IncomeClass.EARNED;
+            } else if (category.includes('interest') || category.includes('dividend') || category.includes('investment')) {
+              updates.incomeClass = IncomeClass.PASSIVE;
+            } else if (category.includes('refund') || category.includes('return') || category.includes('reimburs') || category.includes('cashback')) {
+              updates.incomeClass = IncomeClass.REIMBURSEMENT;
+            } else if (category.includes('gift') || category.includes('settlement')) {
+              updates.incomeClass = IncomeClass.WINDFALL;
+            } else {
+              // Default to EARNED for backward compatibility
+              updates.incomeClass = IncomeClass.EARNED;
+              updates.category = 'Other Income';
+            }
+          }
+
+          await tx.table('transactions').update(transaction.id, updates);
         }
       });
   }

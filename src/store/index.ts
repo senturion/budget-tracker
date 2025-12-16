@@ -28,6 +28,7 @@ interface AppState {
   currentView: 'dashboard' | 'transactions' | 'trends' | 'budgets' | 'settings' | 'upload';
   selectedMonth: Date;
   selectedAccountId: string | 'all'; // 'all' means show all accounts
+  transactionCategoryFilter: string | null; // Category filter for transaction list
   isLoading: boolean;
   error: string | null;
 
@@ -50,6 +51,7 @@ interface AppState {
   setSelectedAccountId: (accountId: string | 'all') => void;
   setCurrentView: (view: AppState['currentView']) => void;
   setSelectedMonth: (month: Date) => void;
+  setTransactionCategoryFilter: (category: string | null) => void;
   setError: (error: string | null) => void;
 }
 
@@ -63,6 +65,7 @@ export const useStore = create<AppState>((set, get) => ({
   currentView: 'dashboard',
   selectedMonth: new Date(),
   selectedAccountId: 'all',
+  transactionCategoryFilter: null,
   isLoading: false,
   error: null,
 
@@ -203,6 +206,8 @@ export const useStore = create<AppState>((set, get) => ({
   setCurrentView: (currentView) => set({ currentView }),
 
   setSelectedMonth: (selectedMonth) => set({ selectedMonth }),
+
+  setTransactionCategoryFilter: (transactionCategoryFilter) => set({ transactionCategoryFilter }),
 
   setError: (error) => set({ error }),
 }));

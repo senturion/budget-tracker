@@ -1,4 +1,5 @@
 import type { Transaction, CategorySpending } from '../types';
+import { affectsSpending, affectsIncome } from './transactionValidation';
 
 export interface MonthlyTrend {
   month: string; // YYYY-MM
@@ -64,15 +65,19 @@ export function getMonthlyTrends(transactions: Transaction[], monthsBack: number
     let totalPayments = 0;
 
     monthTransactions.forEach(tx => {
-      if (tx.amount > 0) {
+      // Only count EXPENSE transactions that affect budget
+      if (affectsSpending(tx)) {
         totalSpending += tx.amount;
-        const existing = categoryMap.get(tx.category) || { amount: 0, count: 0 };
-        categoryMap.set(tx.category, {
-          amount: existing.amount + tx.amount,
-          count: existing.count + 1,
-        });
-      } else {
-        totalPayments += Math.abs(tx.amount);
+        if (tx.category) {
+          const existing = categoryMap.get(tx.category) || { amount: 0, count: 0 };
+          categoryMap.set(tx.category, {
+            amount: existing.amount + tx.amount,
+            count: existing.count + 1,
+          });
+        }
+      } else if (affectsIncome(tx)) {
+        // Only count EARNED and PASSIVE income as "payments"
+        totalPayments += tx.amount;
       }
     });
 
@@ -153,7 +158,7 @@ export function getTopMerchants(transactions: Transaction[], limit: number = 10)
   }>();
 
   transactions
-    .filter(tx => tx.amount > 0) // Only charges
+    .filter(tx => affectsSpending(tx)) // Only expenses that affect budget
     .forEach(tx => {
       const existing = merchantMap.get(tx.merchant) || {
         totalSpent: 0,
@@ -192,7 +197,7 @@ export function getSpendingPatterns(transactions: Transaction[]): SpendingPatter
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
   transactions
-    .filter(tx => tx.amount > 0)
+    .filter(tx => affectsSpending(tx)) // Only expenses that affect budget
     .forEach(tx => {
       const txDate = new Date(tx.date);
 
