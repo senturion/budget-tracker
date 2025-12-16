@@ -181,11 +181,11 @@ export const UploadZone: React.FC = () => {
     [processFile]
   );
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processFile(e.target.files[0]);
     }
-  };
+  }, [processFile]);
 
   const uploadTargetAccount = uploadAccountId
     ? accounts.find(a => a.id === uploadAccountId)
