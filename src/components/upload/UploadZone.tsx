@@ -40,6 +40,9 @@ export const UploadZone: React.FC = () => {
   }, []);
 
   const processFile = async (file: File) => {
+    console.log('=== processFile called ===');
+    console.log('uploadAccountId at processFile start:', uploadAccountId);
+
     if (!file.name.endsWith('.csv')) {
       setStatus('Please upload a CSV file');
       return;
@@ -52,7 +55,7 @@ export const UploadZone: React.FC = () => {
       uploadAccountId,
       selectedAccountId: accountId,
       defaultAccount: accounts.find(a => a.isDefault),
-      allAccounts: accounts
+      allAccounts: accounts.map(a => ({ id: a.id, name: a.name, isDefault: a.isDefault }))
     });
 
     if (!accountId) {
