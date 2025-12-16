@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { parseCSV, detectDuplicates } from '../../services/csvParser';
@@ -15,6 +15,10 @@ export const UploadZone: React.FC = () => {
   const [uploadAccountId, setUploadAccountId] = useState<string | null>(null);
 
   const { settings, transactions, accounts, addTransactions: addToStore, loadData } = useStore();
+
+  useEffect(() => {
+    console.log('uploadAccountId changed to:', uploadAccountId);
+  }, [uploadAccountId]);
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -179,6 +183,7 @@ export const UploadZone: React.FC = () => {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('handleFileSelect called, uploadAccountId:', uploadAccountId);
     if (e.target.files && e.target.files.length > 0) {
       processFile(e.target.files[0]);
     }
@@ -204,7 +209,11 @@ export const UploadZone: React.FC = () => {
               {accounts.map((account) => (
                 <button
                   key={account.id}
-                  onClick={() => setUploadAccountId(account.id)}
+                  onClick={() => {
+                    console.log('Account button clicked:', account.id, account.name);
+                    setUploadAccountId(account.id);
+                    console.log('State update called for uploadAccountId');
+                  }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     uploadAccountId === account.id || (!uploadAccountId && account.isDefault)
                       ? 'bg-primary text-background-alt shadow-glow-sm'
