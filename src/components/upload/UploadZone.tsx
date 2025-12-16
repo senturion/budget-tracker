@@ -16,10 +16,6 @@ export const UploadZone: React.FC = () => {
 
   const { settings, transactions, accounts, addTransactions: addToStore, loadData } = useStore();
 
-  useEffect(() => {
-    console.log('uploadAccountId changed to:', uploadAccountId);
-  }, [uploadAccountId]);
-
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -40,9 +36,6 @@ export const UploadZone: React.FC = () => {
   }, []);
 
   const processFile = async (file: File) => {
-    console.log('=== processFile called ===');
-    console.log('uploadAccountId at processFile start:', uploadAccountId);
-
     if (!file.name.endsWith('.csv')) {
       setStatus('Please upload a CSV file');
       return;
@@ -50,13 +43,6 @@ export const UploadZone: React.FC = () => {
 
     // Check if we have a valid account selected
     const accountId = uploadAccountId || accounts.find(a => a.isDefault)?.id || accounts[0]?.id;
-
-    console.log('Upload Debug:', {
-      uploadAccountId,
-      selectedAccountId: accountId,
-      defaultAccount: accounts.find(a => a.isDefault),
-      allAccounts: accounts.map(a => ({ id: a.id, name: a.name, isDefault: a.isDefault }))
-    });
 
     if (!accountId) {
       setStatus('Please create an account first in Settings');
@@ -69,12 +55,6 @@ export const UploadZone: React.FC = () => {
     try {
       // Parse CSV
       const { transactions: parsedTransactions, errors } = await parseCSV(file, accountId);
-
-      console.log('Parsed transactions sample:', parsedTransactions.slice(0, 3).map(t => ({
-        id: t.id,
-        accountId: t.accountId,
-        description: t.description
-      })));
 
       if (errors.length > 0) {
         console.warn('CSV parsing errors:', errors);
@@ -186,7 +166,6 @@ export const UploadZone: React.FC = () => {
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    console.log('handleFileSelect called, uploadAccountId:', uploadAccountId);
     if (e.target.files && e.target.files.length > 0) {
       processFile(e.target.files[0]);
     }
@@ -212,11 +191,7 @@ export const UploadZone: React.FC = () => {
               {accounts.map((account) => (
                 <button
                   key={account.id}
-                  onClick={() => {
-                    console.log('Account button clicked:', account.id, account.name);
-                    setUploadAccountId(account.id);
-                    console.log('State update called for uploadAccountId');
-                  }}
+                  onClick={() => setUploadAccountId(account.id)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                     uploadAccountId === account.id || (!uploadAccountId && account.isDefault)
                       ? 'bg-primary text-background-alt shadow-glow-sm'
