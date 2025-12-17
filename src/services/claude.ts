@@ -101,8 +101,21 @@ async function callClaude(client: Anthropic, prompt: string): Promise<Record<str
       ],
     });
 
+    // Validate response structure
+    if (!response.content || response.content.length === 0) {
+      throw new Error('Empty response from Claude API');
+    }
+
     const content = response.content[0];
+    if (!content) {
+      throw new Error('No content in Claude API response');
+    }
+
     if (content.type === 'text') {
+      if (!content.text) {
+        throw new Error('Empty text content in Claude API response');
+      }
+
       let textToParse = content.text;
 
       // Remove markdown code blocks if present
@@ -161,8 +174,20 @@ Context: This is for a family of four in Ottawa, Canada with a monthly spending 
       ],
     });
 
+    // Validate response structure
+    if (!response.content || response.content.length === 0) {
+      throw new Error('Empty response from Claude API');
+    }
+
     const content = response.content[0];
+    if (!content) {
+      throw new Error('No content in Claude API response');
+    }
+
     if (content.type === 'text') {
+      if (!content.text) {
+        throw new Error('Empty text content in Claude API response');
+      }
       return content.text;
     }
 
