@@ -23,33 +23,8 @@ export const Dashboard: React.FC = () => {
     [selectedAccountId, accounts]
   );
 
-  // If a specific account is selected, handle based on account type
-  if (currentAccount) {
-    // Show message for unmigrated accounts (no accountType)
-    if (!currentAccount.accountType) {
-      return (
-        <div className="max-w-4xl mx-auto text-center py-12">
-          <h1 className="text-3xl font-display font-bold mb-4 text-text-primary">Account Needs Migration</h1>
-          <p className="text-text-secondary mb-6">
-            This account needs to be updated to use the new account type system.
-          </p>
-          <p className="text-text-secondary mb-6">
-            Please go to Settings → Account Management and edit this account to set its type (Bank or Credit Card).
-          </p>
-          <Button onClick={() => setCurrentView('settings')}>Go to Settings</Button>
-        </div>
-      );
-    }
-
-    // Render specialized dashboards for migrated accounts
-    if (currentAccount.accountType === AccountType.BANK) {
-      return <BankAccountDashboard account={currentAccount as BankAccount} />;
-    } else if (currentAccount.accountType === AccountType.CREDIT_CARD) {
-      return <CreditCardDashboard account={currentAccount as CreditCardAccount} />;
-    }
-  }
-
-  // Otherwise, render the aggregated "All Accounts" dashboard
+  // ALL hooks must be defined before any conditional returns to satisfy React's Rules of Hooks
+  // These won't be used when rendering account-specific dashboards, but must be defined
   const filteredTransactions = useMemo(
     () => filterTransactionsByAccount(transactions, selectedAccountId),
     [transactions, selectedAccountId]
@@ -101,6 +76,41 @@ export const Dashboard: React.FC = () => {
     () => calculateAllBudgetStatuses(budgets, transactions, selectedMonth),
     [budgets, transactions, selectedMonth]
   );
+
+  // Now that all hooks are defined, we can have conditional returns
+  // If a specific account is selected, handle based on account type
+  if (currentAccount) {
+    console.log('Dashboard: currentAccount found', currentAccount);
+    console.log('Dashboard: accountType', currentAccount.accountType);
+
+    // Show message for unmigrated accounts (no accountType)
+    if (!currentAccount.accountType) {
+      console.log('Dashboard: Showing migration message');
+      return (
+        <div className="max-w-4xl mx-auto text-center py-12">
+          <h1 className="text-3xl font-display font-bold mb-4 text-text-primary">Account Needs Migration</h1>
+          <p className="text-text-secondary mb-6">
+            This account needs to be updated to use the new account type system.
+          </p>
+          <p className="text-text-secondary mb-6">
+            Please go to Settings → Account Management and edit this account to set its type (Bank or Credit Card).
+          </p>
+          <Button onClick={() => setCurrentView('settings')}>Go to Settings</Button>
+        </div>
+      );
+    }
+
+    // Render specialized dashboards for migrated accounts
+    if (currentAccount.accountType === AccountType.BANK) {
+      console.log('Dashboard: Rendering BankAccountDashboard');
+      return <BankAccountDashboard account={currentAccount as BankAccount} />;
+    } else if (currentAccount.accountType === AccountType.CREDIT_CARD) {
+      console.log('Dashboard: Rendering CreditCardDashboard');
+      return <CreditCardDashboard account={currentAccount as CreditCardAccount} />;
+    }
+  }
+
+  // Otherwise, render the aggregated "All Accounts" dashboard
 
   const handlePreviousMonth = () => {
     setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));

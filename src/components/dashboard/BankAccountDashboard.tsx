@@ -13,7 +13,9 @@ interface BankAccountDashboardProps {
 }
 
 export const BankAccountDashboard: React.FC<BankAccountDashboardProps> = ({ account }) => {
+  console.log('BankAccountDashboard: Rendering with account', account);
   const { transactions, selectedMonth, setSelectedMonth, setCurrentView } = useStore();
+  console.log('BankAccountDashboard: transactions count', transactions.length);
 
   const filteredTransactions = useMemo(
     () => filterTransactionsByAccount(transactions, account.id),
@@ -53,6 +55,10 @@ export const BankAccountDashboard: React.FC<BankAccountDashboardProps> = ({ acco
     setSelectedMonth(new Date());
   };
 
+  const subtypeLabel = account.subtype
+    ? account.subtype.charAt(0) + account.subtype.slice(1).toLowerCase()
+    : 'Bank Account';
+
   if (transactions.length === 0) {
     return (
       <div className="max-w-4xl mx-auto text-center py-12">
@@ -64,10 +70,6 @@ export const BankAccountDashboard: React.FC<BankAccountDashboardProps> = ({ acco
       </div>
     );
   }
-
-  const subtypeLabel = account.subtype
-    ? account.subtype.charAt(0) + account.subtype.slice(1).toLowerCase()
-    : 'Bank Account';
 
   return (
     <div className="max-w-7xl mx-auto">

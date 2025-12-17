@@ -565,10 +565,20 @@ export const TransactionList: React.FC = () => {
                   </td>
                   <td
                     className={`py-3 px-2 text-right font-mono ${
-                      tx.amount > 0 ? 'text-text-primary' : 'text-positive'
+                      tx.type === TransactionType.INFLOW ||
+                      (tx.type === TransactionType.TRANSFER && tx.toAccountId === selectedAccountId)
+                        ? 'text-positive'
+                        : tx.type === TransactionType.EXPENSE
+                        ? 'text-negative'
+                        : 'text-text-primary'
                     }`}
                   >
-                    {tx.amount > 0 ? '+' : ''}
+                    {tx.type === TransactionType.INFLOW ||
+                     (tx.type === TransactionType.TRANSFER && tx.toAccountId === selectedAccountId)
+                      ? '+'
+                      : tx.type === TransactionType.EXPENSE
+                      ? '-'
+                      : ''}
                     {formatCurrency(tx.amount)}
                   </td>
                 </tr>

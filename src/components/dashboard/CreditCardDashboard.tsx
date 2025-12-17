@@ -13,7 +13,7 @@ interface CreditCardDashboardProps {
 }
 
 export const CreditCardDashboard: React.FC<CreditCardDashboardProps> = ({ account }) => {
-  const { transactions, selectedMonth, setSelectedMonth, setCurrentView } = useStore();
+  const { transactions, selectedMonth, setSelectedMonth, setCurrentView, setTransactionTypeFilter, setTransactionCategoryFilter } = useStore();
 
   const filteredTransactions = useMemo(
     () => filterTransactionsByAccount(transactions, account.id),
@@ -53,18 +53,6 @@ export const CreditCardDashboard: React.FC<CreditCardDashboardProps> = ({ accoun
     setSelectedMonth(new Date());
   };
 
-  if (transactions.length === 0) {
-    return (
-      <div className="max-w-4xl mx-auto text-center py-12">
-        <h1 className="text-3xl font-display font-bold mb-4 text-text-primary">Welcome to Budget Tracker</h1>
-        <p className="text-text-secondary mb-6">
-          Get started by importing your credit card transactions
-        </p>
-        <Button onClick={() => setCurrentView('upload')}>Import Transactions</Button>
-      </div>
-    );
-  }
-
   const getUtilizationColor = (utilization: number) => {
     if (utilization >= 90) return 'text-negative';
     if (utilization >= 70) return 'text-amber-500';
@@ -78,6 +66,18 @@ export const CreditCardDashboard: React.FC<CreditCardDashboardProps> = ({ accoun
     if (utilization >= 50) return 'bg-yellow-500';
     return 'bg-positive';
   };
+
+  if (transactions.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto text-center py-12">
+        <h1 className="text-3xl font-display font-bold mb-4 text-text-primary">Welcome to Budget Tracker</h1>
+        <p className="text-text-secondary mb-6">
+          Get started by importing your credit card transactions
+        </p>
+        <Button onClick={() => setCurrentView('upload')}>Import Transactions</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -248,7 +248,14 @@ export const CreditCardDashboard: React.FC<CreditCardDashboardProps> = ({ accoun
         </Card>
 
         {/* Payments Made */}
-        <Card>
+        <Card
+          className="cursor-pointer hover:shadow-lg transition-shadow"
+          onClick={() => {
+            setTransactionCategoryFilter(null);
+            setTransactionTypeFilter('TRANSFER');
+            setCurrentView('transactions');
+          }}
+        >
           <div className="p-4">
             <h3 className="text-sm font-medium text-text-secondary mb-2">Payments Made</h3>
             <p className="text-2xl font-bold text-positive">
@@ -331,7 +338,18 @@ export const CreditCardDashboard: React.FC<CreditCardDashboardProps> = ({ accoun
       <div className="mt-6">
         <Card>
           <h3 className="text-lg font-semibold mb-4 text-text-primary">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <Button
+              variant="secondary"
+              className="w-full justify-start"
+              onClick={() => {
+                setTransactionCategoryFilter(null);
+                setTransactionTypeFilter('TRANSFER');
+                setCurrentView('transactions');
+              }}
+            >
+              View Payments
+            </Button>
             <Button
               variant="secondary"
               className="w-full justify-start"
