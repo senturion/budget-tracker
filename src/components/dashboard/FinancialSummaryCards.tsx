@@ -21,7 +21,7 @@ export const FinancialSummaryCards: React.FC<FinancialSummaryCardsProps> = ({
     ? ((summary.netWorthChange / summary.income.total) * 100).toFixed(1)
     : '0.0';
 
-  const isCreditAccount = account?.type === 'credit';
+  const isCreditAccount = account?.accountType === 'CREDIT_CARD';
 
   // For credit accounts: positive netWorthChange means you're spending more than paying off (bad)
   // For other accounts: positive netWorthChange is good (income > expenses)

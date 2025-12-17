@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
-import type { Transaction, MerchantRule, Budget, AppSettings, Account } from '../types';
-import { TransactionType, IncomeClass } from '../types';
+import type { Transaction, MerchantRule, Budget, AppSettings, Account, BankAccount, CreditCardAccount } from '../types';
+import { TransactionType, IncomeClass, AccountType, BankAccountSubtype } from '../types';
 
 class BudgetTrackerDatabase extends Dexie {
   transactions!: Table<Transaction>;
@@ -53,10 +53,12 @@ class BudgetTrackerDatabase extends Dexie {
       })
       .upgrade(async (tx) => {
         // Create default account for existing data
-        const defaultAccount: Account = {
+        const defaultAccount: CreditCardAccount = {
           id: 'default-account',
           name: 'Default Account',
-          type: 'credit',
+          accountType: AccountType.CREDIT_CARD,
+          currency: 'CAD',
+          isActive: true,
           color: '#f59e0b',
           isDefault: true,
           createdAt: new Date().toISOString(),
@@ -123,6 +125,65 @@ class BudgetTrackerDatabase extends Dexie {
           }
 
           await tx.table('transactions').update(transaction.id, updates);
+        }
+      });
+
+    // Migrate accounts to new schema with AccountType distinction
+    this.version(5)
+      .stores({
+        transactions: 'id, accountId, toAccountId, type, date, category, merchant, amount, importedAt, affectsBudget',
+        merchantRules: '++id, pattern, category',
+        budgets: 'id, category, accountId',
+        settings: 'id',
+        accounts: 'id, name, accountType, isDefault, isActive',
+      })
+      .upgrade(async (tx) => {
+        // Migrate existing accounts to new schema
+        const oldAccounts = await tx.table('accounts').toArray();
+
+        for (const oldAccount of oldAccounts) {
+          // Determine account type from old 'type' field
+          const isCreditCard = oldAccount.type === 'credit';
+
+          if (isCreditCard) {
+            // Migrate to credit card account
+            const creditCardAccount: CreditCardAccount = {
+              id: oldAccount.id,
+              name: oldAccount.name,
+              accountType: AccountType.CREDIT_CARD,
+              institution: oldAccount.institution,
+              currency: 'CAD',
+              isActive: true,
+              color: oldAccount.color,
+              isDefault: oldAccount.isDefault,
+              createdAt: oldAccount.createdAt,
+              // Credit card specific fields - will be filled in by user later
+              issuer: oldAccount.institution,
+              creditLimit: undefined,
+              currentBalance: undefined,
+              availableCredit: undefined,
+            };
+            await tx.table('accounts').put(creditCardAccount);
+          } else {
+            // Migrate to bank account
+            const bankAccount: BankAccount = {
+              id: oldAccount.id,
+              name: oldAccount.name,
+              accountType: AccountType.BANK,
+              subtype: oldAccount.type === 'chequing' ? BankAccountSubtype.CHEQUING :
+                       oldAccount.type === 'savings' ? BankAccountSubtype.SAVINGS :
+                       BankAccountSubtype.CHEQUING, // default to chequing
+              institution: oldAccount.institution,
+              currency: 'CAD',
+              isActive: true,
+              color: oldAccount.color,
+              isDefault: oldAccount.isDefault,
+              createdAt: oldAccount.createdAt,
+              currentBalance: undefined,
+              availableBalance: undefined,
+            };
+            await tx.table('accounts').put(bankAccount);
+          }
         }
       });
   }

@@ -24,27 +24,21 @@ export const Settings: React.FC = () => {
   }, [settings]);
 
   const handleSaveApiKey = async () => {
-    console.log('handleSaveApiKey called');
     if (!settings) {
-      console.log('No settings found');
       return;
     }
 
-    console.log('Testing API key...');
     setIsTestingKey(true);
     setKeyTestResult(null);
 
     try {
       const isValid = await testApiKey(apiKey);
-      console.log('API key test result:', isValid);
 
       if (isValid) {
         setKeyTestResult('success');
         await saveSettings({ ...settings, apiKey });
-        console.log('API key saved');
       } else {
         setKeyTestResult('error');
-        console.log('API key test failed');
       }
     } catch (error) {
       console.error('Error testing API key:', error);

@@ -5,12 +5,62 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { filterTransactionsByAccount } from '../../utils/accountFilters';
-import type { Transaction } from '../../types';
+import type { Transaction, Account } from '../../types';
+import { TransactionType, IncomeClass, AccountType } from '../../types';
 import { updateTransaction as updateTransactionInDb, addMerchantRule, updateMerchantInAllTransactions } from '../../services/storage';
 import { categorizeTransactions } from '../../services/claude';
 
+/**
+ * Get semantic label for transaction based on type and account context
+ */
+function getTransactionLabel(tx: Transaction, accounts: Account[]): string {
+  // EXPENSE: Check if it's on a credit card (Purchase) or bank account (Expense)
+  if (tx.type === TransactionType.EXPENSE) {
+    const account = accounts.find(a => a.id === tx.accountId);
+    if (account?.accountType === AccountType.CREDIT_CARD) {
+      return 'Purchase';
+    }
+    return 'Expense';
+  }
+
+  // TRANSFER: Show payment direction
+  if (tx.type === TransactionType.TRANSFER) {
+    const fromAccount = accounts.find(a => a.id === tx.accountId);
+    const toAccount = accounts.find(a => a.id === tx.toAccountId);
+
+    const fromName = fromAccount?.name || 'Unknown';
+    const toName = toAccount?.name || 'Unknown';
+
+    return `Transfer (${fromName} → ${toName})`;
+  }
+
+  // INFLOW: Check income class for semantic meaning
+  if (tx.type === TransactionType.INFLOW) {
+    if (tx.incomeClass === IncomeClass.REIMBURSEMENT) {
+      return 'Refund';
+    }
+    if (tx.incomeClass === IncomeClass.EARNED) {
+      return 'Earned Income';
+    }
+    if (tx.incomeClass === IncomeClass.PASSIVE) {
+      return 'Passive Income';
+    }
+    if (tx.incomeClass === IncomeClass.WINDFALL) {
+      return 'Windfall';
+    }
+    return 'Income';
+  }
+
+  // ADJUSTMENT
+  if (tx.type === TransactionType.ADJUSTMENT) {
+    return 'Adjustment';
+  }
+
+  return tx.type;
+}
+
 export const TransactionList: React.FC = () => {
-  const { transactions, selectedAccountId, transactionCategoryFilter, transactionTypeFilter, setTransactionCategoryFilter, setTransactionTypeFilter, updateTransaction, settings, loadData } = useStore();
+  const { transactions, selectedAccountId, transactionCategoryFilter, transactionTypeFilter, setTransactionCategoryFilter, setTransactionTypeFilter, updateTransaction, settings, loadData, accounts } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -175,7 +225,7 @@ export const TransactionList: React.FC = () => {
     if (!editingTransaction) return;
 
     const updates: Partial<Transaction> = {
-      type: newType as any,
+      type: newType as TransactionType,
     };
 
     // If changing to TRANSFER or ADJUSTMENT, set affectsBudget to false
@@ -216,7 +266,7 @@ export const TransactionList: React.FC = () => {
 
   const handleBulkTypeChange = async (newType: string) => {
     const updates: Partial<Transaction> = {
-      type: newType as any,
+      type: newType as TransactionType,
     };
 
     if (newType === 'TRANSFER' || newType === 'ADJUSTMENT') {
@@ -473,6 +523,7 @@ export const TransactionList: React.FC = () => {
                   Date {sortField === 'date' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="text-left py-3 px-2 text-text-secondary">Description</th>
+                <th className="text-left py-3 px-2 text-text-secondary">Type</th>
                 <th className="text-left py-3 px-2 text-text-secondary">Category</th>
                 <th
                   className="text-right py-3 px-2 text-text-secondary cursor-pointer hover:text-text-primary"
@@ -497,6 +548,11 @@ export const TransactionList: React.FC = () => {
                   <td className="py-3 px-2">
                     <div className="text-text-primary">{tx.description}</div>
                     <div className="text-xs text-text-secondary">{tx.merchant}</div>
+                  </td>
+                  <td className="py-3 px-2">
+                    <span className="text-sm text-text-secondary">
+                      {getTransactionLabel(tx, accounts)}
+                    </span>
                   </td>
                   <td className="py-3 px-2">
                     <button
