@@ -6,9 +6,10 @@ import type { Transaction } from '../../types';
 
 interface IncomeBreakdownProps {
   transactions: Transaction[];
+  onIncomeClick?: () => void;
 }
 
-export const IncomeBreakdown: React.FC<IncomeBreakdownProps> = ({ transactions }) => {
+export const IncomeBreakdown: React.FC<IncomeBreakdownProps> = ({ transactions, onIncomeClick }) => {
   const incomeSources = getIncomeSources(transactions);
 
   if (incomeSources.length === 0) {
@@ -23,7 +24,10 @@ export const IncomeBreakdown: React.FC<IncomeBreakdownProps> = ({ transactions }
   const total = incomeSources.reduce((sum, source) => sum + source.amount, 0);
 
   return (
-    <Card>
+    <Card
+      onClick={onIncomeClick}
+      className={onIncomeClick ? "cursor-pointer hover:shadow-glow-md transition-all" : ""}
+    >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-text-primary">Income Breakdown</h3>
         <span className="text-sm text-text-secondary font-mono">

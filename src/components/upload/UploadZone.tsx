@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card } from '../common/Card';
-import { Button } from '../common/Button';
 import { parseCSV, detectDuplicates } from '../../services/csvParser';
 import { categorizeTransactions } from '../../services/claude';
 import { addTransactions, addMerchantRule, findMerchantRule } from '../../services/storage';
@@ -121,11 +120,16 @@ export const UploadZone: React.FC = () => {
                 categorizedCount++;
 
                 // Create merchant rule for future use
-                await addMerchantRule({
-                  pattern: tx.merchant,
-                  category: result.category,
-                  createdAt: new Date().toISOString(),
-                });
+                try {
+                  await addMerchantRule({
+                    pattern: tx.merchant,
+                    category: result.category,
+                    createdAt: new Date().toISOString(),
+                  });
+                } catch (ruleError) {
+                  console.error('Failed to create merchant rule:', ruleError);
+                  // Continue processing - merchant rule creation failure shouldn't block import
+                }
               }
             }
 
@@ -139,15 +143,27 @@ export const UploadZone: React.FC = () => {
 
       // Save transactions
       setStatus('Saving transactions...');
-      await addTransactions(unique);
-      addToStore(unique);
+      try {
+        await addTransactions(unique);
+        addToStore(unique);
 
-      setStatus(`Successfully imported ${unique.length} transactions!`);
-      setPreview(unique.slice(0, 10));
-      setIsProcessing(false);
+        setStatus(`Successfully imported ${unique.length} transactions!`);
+        setPreview(unique.slice(0, 10));
+        setIsProcessing(false);
 
-      // Reload data to refresh merchant rules
-      await loadData();
+        // Reload data to refresh merchant rules
+        try {
+          await loadData();
+        } catch (loadError) {
+          console.error('Failed to reload data after import:', loadError);
+          // Data is already saved, so this is not critical
+        }
+      } catch (saveError) {
+        console.error('Failed to save transactions:', saveError);
+        setStatus(`❌ Failed to save transactions: ${saveError instanceof Error ? saveError.message : 'Unknown error'}`);
+        setIsProcessing(false);
+        return;
+      }
     } catch (error) {
       console.error('Error processing file:', error);
       setStatus(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);

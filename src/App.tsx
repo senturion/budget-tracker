@@ -1,12 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { useStore } from './store';
-import { Dashboard } from './components/dashboard/Dashboard';
-import { TransactionList } from './components/transactions/TransactionList';
-import { UploadZone } from './components/upload/UploadZone';
-import { Settings } from './components/settings/Settings';
-import { Trends } from './components/trends/Trends';
 import { BackupReminder } from './components/common/BackupReminder';
 import { AccountSelector } from './components/common/AccountSelector';
+
+// Lazy load heavy components for better initial load performance
+const Dashboard = lazy(() => import('./components/dashboard/Dashboard').then(m => ({ default: m.Dashboard })));
+const TransactionList = lazy(() => import('./components/transactions/TransactionList').then(m => ({ default: m.TransactionList })));
+const UploadZone = lazy(() => import('./components/upload/UploadZone').then(m => ({ default: m.UploadZone })));
+const Settings = lazy(() => import('./components/settings/Settings').then(m => ({ default: m.Settings })));
+const Trends = lazy(() => import('./components/trends/Trends').then(m => ({ default: m.Trends })));
 
 function App() {
   const { currentView, setCurrentView, loadData, isLoading } = useStore();
@@ -71,11 +73,13 @@ function App() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {currentView === 'dashboard' && <Dashboard />}
-        {currentView === 'transactions' && <TransactionList />}
-        {currentView === 'trends' && <Trends />}
-        {currentView === 'upload' && <UploadZone />}
-        {currentView === 'settings' && <Settings />}
+        <Suspense fallback={<div className="flex items-center justify-center py-12"><div className="text-text-primary">Loading...</div></div>}>
+          {currentView === 'dashboard' && <Dashboard />}
+          {currentView === 'transactions' && <TransactionList />}
+          {currentView === 'trends' && <Trends />}
+          {currentView === 'upload' && <UploadZone />}
+          {currentView === 'settings' && <Settings />}
+        </Suspense>
       </main>
 
       {/* Backup Reminder */}

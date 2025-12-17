@@ -1,5 +1,7 @@
 import React, { useMemo } from 'react';
 import { useStore } from '../../store';
+import { BankAccountDashboard } from './BankAccountDashboard';
+import { CreditCardDashboard } from './CreditCardDashboard';
 import { FinancialSummaryCards } from './FinancialSummaryCards';
 import { SpendingBreakdown } from './SpendingBreakdown';
 import { IncomeBreakdown } from './IncomeBreakdown';
@@ -10,19 +12,22 @@ import { calculateAllBudgetStatuses } from '../../utils/budgetCalculations';
 import { getMonthStart, getMonthEnd, formatMonthYear, getPreviousMonth, formatCurrency } from '../../utils/formatters';
 import { filterTransactionsByAccount } from '../../utils/accountFilters';
 import { Button } from '../common/Button';
-import type { CategorySpending } from '../../types';
+import { AccountType } from '../../types';
+import type { CategorySpending, BankAccount, CreditCardAccount } from '../../types';
 
 export const Dashboard: React.FC = () => {
-  const { transactions, budgets, selectedMonth, selectedAccountId, accounts, setSelectedMonth, setCurrentView, setTransactionCategoryFilter } = useStore();
-
-  const filteredTransactions = useMemo(
-    () => filterTransactionsByAccount(transactions, selectedAccountId),
-    [transactions, selectedAccountId]
-  );
+  const { transactions, budgets, selectedMonth, selectedAccountId, accounts, setSelectedMonth, setCurrentView, setTransactionCategoryFilter, setTransactionTypeFilter } = useStore();
 
   const currentAccount = useMemo(
     () => selectedAccountId !== 'all' ? accounts.find(a => a.id === selectedAccountId) : undefined,
     [selectedAccountId, accounts]
+  );
+
+  // ALL hooks must be defined before any conditional returns to satisfy React's Rules of Hooks
+  // These won't be used when rendering account-specific dashboards, but must be defined
+  const filteredTransactions = useMemo(
+    () => filterTransactionsByAccount(transactions, selectedAccountId),
+    [transactions, selectedAccountId]
   );
 
   const monthStart = useMemo(() => getMonthStart(selectedMonth), [selectedMonth]);
@@ -49,18 +54,6 @@ export const Dashboard: React.FC = () => {
   );
 
   const summary = useMemo(() => {
-    console.log('Dashboard Debug:', {
-      totalTransactions: currentMonthTransactions.length,
-      sampleTransactions: currentMonthTransactions.slice(0, 3).map(t => ({
-        description: t.description,
-        type: t.type,
-        amount: t.amount,
-        category: t.category,
-        affectsBudget: t.affectsBudget,
-        incomeClass: t.incomeClass
-      }))
-    });
-
     return calculateFinancialSummary(currentMonthTransactions);
   }, [currentMonthTransactions]);
 
@@ -84,6 +77,41 @@ export const Dashboard: React.FC = () => {
     [budgets, transactions, selectedMonth]
   );
 
+  // Now that all hooks are defined, we can have conditional returns
+  // If a specific account is selected, handle based on account type
+  if (currentAccount) {
+    console.log('Dashboard: currentAccount found', currentAccount);
+    console.log('Dashboard: accountType', currentAccount.accountType);
+
+    // Show message for unmigrated accounts (no accountType)
+    if (!currentAccount.accountType) {
+      console.log('Dashboard: Showing migration message');
+      return (
+        <div className="max-w-4xl mx-auto text-center py-12">
+          <h1 className="text-3xl font-display font-bold mb-4 text-text-primary">Account Needs Migration</h1>
+          <p className="text-text-secondary mb-6">
+            This account needs to be updated to use the new account type system.
+          </p>
+          <p className="text-text-secondary mb-6">
+            Please go to Settings → Account Management and edit this account to set its type (Bank or Credit Card).
+          </p>
+          <Button onClick={() => setCurrentView('settings')}>Go to Settings</Button>
+        </div>
+      );
+    }
+
+    // Render specialized dashboards for migrated accounts
+    if (currentAccount.accountType === AccountType.BANK) {
+      console.log('Dashboard: Rendering BankAccountDashboard');
+      return <BankAccountDashboard account={currentAccount as BankAccount} />;
+    } else if (currentAccount.accountType === AccountType.CREDIT_CARD) {
+      console.log('Dashboard: Rendering CreditCardDashboard');
+      return <CreditCardDashboard account={currentAccount as CreditCardAccount} />;
+    }
+  }
+
+  // Otherwise, render the aggregated "All Accounts" dashboard
+
   const handlePreviousMonth = () => {
     setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
   };
@@ -98,6 +126,13 @@ export const Dashboard: React.FC = () => {
 
   const handleCategoryClick = (category: string) => {
     setTransactionCategoryFilter(category);
+    setTransactionTypeFilter(null);
+    setCurrentView('transactions');
+  };
+
+  const handleTransactionTypeClick = (type: string) => {
+    setTransactionCategoryFilter(null);
+    setTransactionTypeFilter(type);
     setCurrentView('transactions');
   };
 
@@ -139,6 +174,7 @@ export const Dashboard: React.FC = () => {
         summary={summary}
         previousPeriodChange={previousPeriodChange}
         account={currentAccount}
+        onTransactionTypeClick={handleTransactionTypeClick}
       />
 
       {budgetStatuses.length > 0 && (
@@ -158,7 +194,10 @@ export const Dashboard: React.FC = () => {
           budgetStatuses={budgetStatuses}
           onCategoryClick={handleCategoryClick}
         />
-        <IncomeBreakdown transactions={currentMonthTransactions} />
+        <IncomeBreakdown
+          transactions={currentMonthTransactions}
+          onIncomeClick={() => handleTransactionTypeClick('INFLOW')}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

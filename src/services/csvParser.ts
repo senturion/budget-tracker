@@ -17,9 +17,13 @@ export function parseCSV(file: File, accountId: string): Promise<ParsedCSV> {
         const transactions: Transaction[] = [];
         const errors: string[] = [];
 
-        results.data.forEach((row: any, index: number) => {
+        results.data.forEach((row: unknown, index: number) => {
           try {
             // CSV format: date,description,charge,credit,balance
+            if (!Array.isArray(row) || row.length < 4) {
+              errors.push(`Row ${index + 1}: Invalid CSV format`);
+              return;
+            }
             const [dateStr, descriptionRaw, charge, credit] = row;
 
             // Clean quoted fields

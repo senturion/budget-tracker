@@ -29,6 +29,7 @@ interface AppState {
   selectedMonth: Date;
   selectedAccountId: string | 'all'; // 'all' means show all accounts
   transactionCategoryFilter: string | null; // Category filter for transaction list
+  transactionTypeFilter: string | null; // Type filter for transaction list (EXPENSE, INFLOW, etc.)
   isLoading: boolean;
   error: string | null;
 
@@ -52,6 +53,7 @@ interface AppState {
   setCurrentView: (view: AppState['currentView']) => void;
   setSelectedMonth: (month: Date) => void;
   setTransactionCategoryFilter: (category: string | null) => void;
+  setTransactionTypeFilter: (type: string | null) => void;
   setError: (error: string | null) => void;
 }
 
@@ -66,6 +68,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedMonth: new Date(),
   selectedAccountId: 'all',
   transactionCategoryFilter: null,
+  transactionTypeFilter: null,
   isLoading: false,
   error: null,
 
@@ -208,6 +211,8 @@ export const useStore = create<AppState>((set, get) => ({
   setSelectedMonth: (selectedMonth) => set({ selectedMonth }),
 
   setTransactionCategoryFilter: (transactionCategoryFilter) => set({ transactionCategoryFilter }),
+
+  setTransactionTypeFilter: (transactionTypeFilter) => set({ transactionTypeFilter }),
 
   setError: (error) => set({ error }),
 }));

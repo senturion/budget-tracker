@@ -1,4 +1,4 @@
-import type { Transaction } from '../types';
+import type { Transaction, CategorySpending } from '../types';
 import { TransactionType, IncomeClass } from '../types';
 
 export interface FinancialSummary {
@@ -158,12 +158,7 @@ export function getIncomeSources(transactions: Transaction[]): Array<{
 /**
  * Get expense categories breakdown
  */
-export function getExpenseCategories(transactions: Transaction[]): Array<{
-  category: string;
-  amount: number;
-  percentage: number;
-  count: number;
-}> {
+export function getExpenseCategories(transactions: Transaction[]): CategorySpending[] {
   const summary = calculateFinancialSummary(transactions);
   const total = summary.expenses.total;
 
@@ -174,7 +169,7 @@ export function getExpenseCategories(transactions: Transaction[]): Array<{
       category,
       amount,
       percentage: (amount / total) * 100,
-      count: transactions.filter(tx =>
+      transactionCount: transactions.filter(tx =>
         tx.type === TransactionType.EXPENSE &&
         tx.category === category &&
         tx.affectsBudget

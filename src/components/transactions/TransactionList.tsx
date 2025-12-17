@@ -5,12 +5,62 @@ import { Button } from '../common/Button';
 import { Modal } from '../common/Modal';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { filterTransactionsByAccount } from '../../utils/accountFilters';
-import type { Transaction } from '../../types';
+import type { Transaction, Account } from '../../types';
+import { TransactionType, IncomeClass, AccountType } from '../../types';
 import { updateTransaction as updateTransactionInDb, addMerchantRule, updateMerchantInAllTransactions } from '../../services/storage';
 import { categorizeTransactions } from '../../services/claude';
 
+/**
+ * Get semantic label for transaction based on type and account context
+ */
+function getTransactionLabel(tx: Transaction, accounts: Account[]): string {
+  // EXPENSE: Check if it's on a credit card (Purchase) or bank account (Expense)
+  if (tx.type === TransactionType.EXPENSE) {
+    const account = accounts.find(a => a.id === tx.accountId);
+    if (account?.accountType === AccountType.CREDIT_CARD) {
+      return 'Purchase';
+    }
+    return 'Expense';
+  }
+
+  // TRANSFER: Show payment direction
+  if (tx.type === TransactionType.TRANSFER) {
+    const fromAccount = accounts.find(a => a.id === tx.accountId);
+    const toAccount = accounts.find(a => a.id === tx.toAccountId);
+
+    const fromName = fromAccount?.name || 'Unknown';
+    const toName = toAccount?.name || 'Unknown';
+
+    return `Transfer (${fromName} → ${toName})`;
+  }
+
+  // INFLOW: Check income class for semantic meaning
+  if (tx.type === TransactionType.INFLOW) {
+    if (tx.incomeClass === IncomeClass.REIMBURSEMENT) {
+      return 'Refund';
+    }
+    if (tx.incomeClass === IncomeClass.EARNED) {
+      return 'Earned Income';
+    }
+    if (tx.incomeClass === IncomeClass.PASSIVE) {
+      return 'Passive Income';
+    }
+    if (tx.incomeClass === IncomeClass.WINDFALL) {
+      return 'Windfall';
+    }
+    return 'Income';
+  }
+
+  // ADJUSTMENT
+  if (tx.type === TransactionType.ADJUSTMENT) {
+    return 'Adjustment';
+  }
+
+  return tx.type;
+}
+
 export const TransactionList: React.FC = () => {
-  const { transactions, selectedAccountId, transactionCategoryFilter, setTransactionCategoryFilter, updateTransaction, settings, loadData } = useStore();
+  const { transactions, selectedAccountId, transactionCategoryFilter, transactionTypeFilter, setTransactionCategoryFilter, setTransactionTypeFilter, updateTransaction, settings, loadData, accounts } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -22,6 +72,7 @@ export const TransactionList: React.FC = () => {
   const [recategorizeStatus, setRecategorizeStatus] = useState<string>('');
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
 
   const accountFilteredTransactions = useMemo(
     () => filterTransactionsByAccount(transactions, selectedAccountId),
@@ -29,12 +80,24 @@ export const TransactionList: React.FC = () => {
   );
 
   const categories = useMemo(() => {
-    const cats = new Set(accountFilteredTransactions.map((tx) => tx.category));
+    const cats = new Set(
+      accountFilteredTransactions
+        .map((tx) => tx.category)
+        .filter((cat): cat is string => cat !== null)
+    );
     return Array.from(cats).sort();
   }, [accountFilteredTransactions]);
 
   const filteredTransactions = useMemo(() => {
     let filtered = accountFilteredTransactions;
+
+    // Filter by selected month
+    const monthStart = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
+    const monthEnd = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
+    filtered = filtered.filter((tx) => {
+      const txDate = new Date(tx.date);
+      return txDate >= monthStart && txDate <= monthEnd;
+    });
 
     if (searchTerm) {
       filtered = filtered.filter(
@@ -46,6 +109,10 @@ export const TransactionList: React.FC = () => {
 
     if (transactionCategoryFilter) {
       filtered = filtered.filter((tx) => tx.category === transactionCategoryFilter);
+    }
+
+    if (transactionTypeFilter) {
+      filtered = filtered.filter((tx) => tx.type === transactionTypeFilter);
     }
 
     // Sort
@@ -69,7 +136,7 @@ export const TransactionList: React.FC = () => {
     });
 
     return filtered;
-  }, [accountFilteredTransactions, searchTerm, transactionCategoryFilter, sortField, sortDirection]);
+  }, [accountFilteredTransactions, searchTerm, transactionCategoryFilter, transactionTypeFilter, sortField, sortDirection, selectedMonth]);
 
   const handleSort = (field: 'date' | 'amount') => {
     if (sortField === field) {
@@ -78,6 +145,28 @@ export const TransactionList: React.FC = () => {
       setSortField(field);
       setSortDirection('desc');
     }
+  };
+
+  const handlePreviousMonth = () => {
+    setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() - 1, 1));
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth(new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 1));
+  };
+
+  const handleCurrentMonth = () => {
+    setSelectedMonth(new Date());
+  };
+
+  const formatMonthYear = (date: Date) => {
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  const isCurrentMonth = () => {
+    const now = new Date();
+    return selectedMonth.getFullYear() === now.getFullYear() &&
+           selectedMonth.getMonth() === now.getMonth();
   };
 
   const handleCategoryChange = async (newCategory: string) => {
@@ -136,7 +225,7 @@ export const TransactionList: React.FC = () => {
     if (!editingTransaction) return;
 
     const updates: Partial<Transaction> = {
-      type: newType as any,
+      type: newType as TransactionType,
     };
 
     // If changing to TRANSFER or ADJUSTMENT, set affectsBudget to false
@@ -177,7 +266,7 @@ export const TransactionList: React.FC = () => {
 
   const handleBulkTypeChange = async (newType: string) => {
     const updates: Partial<Transaction> = {
-      type: newType as any,
+      type: newType as TransactionType,
     };
 
     if (newType === 'TRANSFER' || newType === 'ADJUSTMENT') {
@@ -186,13 +275,24 @@ export const TransactionList: React.FC = () => {
       updates.affectsBudget = true;
     }
 
-    for (const txId of selectedTransactionIds) {
-      await updateTransactionInDb(txId, updates);
-      updateTransaction(txId, updates);
-    }
+    try {
+      // Update all transactions in database first (in parallel)
+      await Promise.all(
+        Array.from(selectedTransactionIds).map(txId =>
+          updateTransactionInDb(txId, updates)
+        )
+      );
 
-    setSelectedTransactionIds(new Set());
-    setShowBulkEditModal(false);
+      // Only update store after all DB updates succeed
+      selectedTransactionIds.forEach(txId => {
+        updateTransaction(txId, updates);
+      });
+
+      setSelectedTransactionIds(new Set());
+      setShowBulkEditModal(false);
+    } catch (error) {
+      alert(`Failed to update transactions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleBulkCategoryChange = async (newCategory: string) => {
@@ -201,13 +301,24 @@ export const TransactionList: React.FC = () => {
       categorySource: 'manual' as const,
     };
 
-    for (const txId of selectedTransactionIds) {
-      await updateTransactionInDb(txId, updates);
-      updateTransaction(txId, updates);
-    }
+    try {
+      // Update all transactions in database first (in parallel)
+      await Promise.all(
+        Array.from(selectedTransactionIds).map(txId =>
+          updateTransactionInDb(txId, updates)
+        )
+      );
 
-    setSelectedTransactionIds(new Set());
-    setShowBulkEditModal(false);
+      // Only update store after all DB updates succeed
+      selectedTransactionIds.forEach(txId => {
+        updateTransaction(txId, updates);
+      });
+
+      setSelectedTransactionIds(new Set());
+      setShowBulkEditModal(false);
+    } catch (error) {
+      alert(`Failed to update transactions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleRecategorizeAll = async () => {
@@ -236,7 +347,6 @@ export const TransactionList: React.FC = () => {
       // Process in batches of 50 to avoid overwhelming the API
       const batchSize = 50;
       let categorizedCount = 0;
-      const categories = settings.defaultCategories;
 
       for (let i = 0; i < txToRecategorize.length; i += batchSize) {
         const batch = txToRecategorize.slice(i, i + batchSize);
@@ -247,23 +357,26 @@ export const TransactionList: React.FC = () => {
           `Categorizing batch ${batchNum}/${totalBatches} (${batch.length} transactions)...`
         );
 
-        const descriptions = batch.map(tx => tx.description);
-
         try {
           const categorizations = await categorizeTransactions(
             settings.apiKey,
-            descriptions,
-            categories
+            batch
           );
 
           // Apply categorizations for this batch
           for (const tx of batch) {
-            const category = categorizations[tx.description];
-            if (category && category !== tx.category) {
-              const updates = {
-                category,
+            const result = categorizations[tx.description];
+            if (result && result.category && result.category !== tx.category) {
+              const updates: Partial<Transaction> = {
+                category: result.category,
                 categorySource: 'ai' as const,
               };
+
+              // Update incomeClass if this is an INFLOW transaction
+              if (tx.type === 'INFLOW' && result.incomeClass) {
+                updates.incomeClass = result.incomeClass;
+              }
+
               await updateTransactionInDb(tx.id, updates);
               updateTransaction(tx.id, updates);
               categorizedCount++;
@@ -271,7 +384,7 @@ export const TransactionList: React.FC = () => {
               // Create/update merchant rule
               await addMerchantRule({
                 pattern: tx.merchant,
-                category,
+                category: result.category,
                 createdAt: new Date().toISOString(),
               });
             }
@@ -298,6 +411,38 @@ export const TransactionList: React.FC = () => {
       <h1 className="text-3xl font-display font-bold mb-6 text-text-primary">Transactions</h1>
 
       <Card className="mb-6">
+        {/* Month Navigation */}
+        <div className="flex items-center justify-between mb-4 pb-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handlePreviousMonth}
+              variant="secondary"
+              className="px-3 py-2"
+            >
+              ← Prev
+            </Button>
+            <div className="px-4 py-2 bg-background-alt/50 backdrop-blur-sm border border-border rounded text-text-primary font-medium min-w-[200px] text-center">
+              {formatMonthYear(selectedMonth)}
+            </div>
+            <Button
+              onClick={handleNextMonth}
+              variant="secondary"
+              className="px-3 py-2"
+            >
+              Next →
+            </Button>
+          </div>
+          {!isCurrentMonth() && (
+            <Button
+              onClick={handleCurrentMonth}
+              variant="primary"
+              className="px-4 py-2"
+            >
+              Current Month
+            </Button>
+          )}
+        </div>
+
         <div className="flex flex-col md:flex-row gap-4 mb-4">
           <input
             type="text"
@@ -317,6 +462,17 @@ export const TransactionList: React.FC = () => {
                 {cat}
               </option>
             ))}
+          </select>
+          <select
+            value={transactionTypeFilter || ''}
+            onChange={(e) => setTransactionTypeFilter(e.target.value || null)}
+            className="px-4 py-2 bg-background-alt/50 backdrop-blur-sm border border-border rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+          >
+            <option value="">All Types</option>
+            <option value="EXPENSE">Expenses</option>
+            <option value="INFLOW">Income/Payments</option>
+            <option value="TRANSFER">Transfers</option>
+            <option value="ADJUSTMENT">Adjustments</option>
           </select>
           <Button
             onClick={handleRecategorizeAll}
@@ -367,6 +523,7 @@ export const TransactionList: React.FC = () => {
                   Date {sortField === 'date' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </th>
                 <th className="text-left py-3 px-2 text-text-secondary">Description</th>
+                <th className="text-left py-3 px-2 text-text-secondary">Type</th>
                 <th className="text-left py-3 px-2 text-text-secondary">Category</th>
                 <th
                   className="text-right py-3 px-2 text-text-secondary cursor-pointer hover:text-text-primary"
@@ -393,6 +550,11 @@ export const TransactionList: React.FC = () => {
                     <div className="text-xs text-text-secondary">{tx.merchant}</div>
                   </td>
                   <td className="py-3 px-2">
+                    <span className="text-sm text-text-secondary">
+                      {getTransactionLabel(tx, accounts)}
+                    </span>
+                  </td>
+                  <td className="py-3 px-2">
                     <button
                       onClick={() => setEditingTransaction(tx)}
                       className="px-3 py-1 rounded text-xs bg-primary/20 backdrop-blur-sm text-primary hover:bg-primary hover:text-background-alt hover:shadow-glow-md transition-all duration-200 cursor-pointer font-medium border border-primary/30 hover:border-primary"
@@ -403,10 +565,20 @@ export const TransactionList: React.FC = () => {
                   </td>
                   <td
                     className={`py-3 px-2 text-right font-mono ${
-                      tx.amount > 0 ? 'text-text-primary' : 'text-positive'
+                      tx.type === TransactionType.INFLOW ||
+                      (tx.type === TransactionType.TRANSFER && tx.toAccountId === selectedAccountId)
+                        ? 'text-positive'
+                        : tx.type === TransactionType.EXPENSE
+                        ? 'text-negative'
+                        : 'text-text-primary'
                     }`}
                   >
-                    {tx.amount > 0 ? '+' : ''}
+                    {tx.type === TransactionType.INFLOW ||
+                     (tx.type === TransactionType.TRANSFER && tx.toAccountId === selectedAccountId)
+                      ? '+'
+                      : tx.type === TransactionType.EXPENSE
+                      ? '-'
+                      : ''}
                     {formatCurrency(tx.amount)}
                   </td>
                 </tr>

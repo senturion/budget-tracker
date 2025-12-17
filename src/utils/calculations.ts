@@ -1,5 +1,4 @@
 import type { Transaction, CategorySpending, SpendingSummary } from '../types';
-import { TransactionType, IncomeClass } from '../types';
 import { affectsSpending, affectsIncome } from './transactionValidation';
 
 export function calculateSpendingSummary(
@@ -37,14 +36,6 @@ export function calculateSpendingSummary(
   });
 
   const netChange = totalSpending - totalPayments;
-
-  console.log('Spending Summary:', {
-    totalTransactions: transactions.length,
-    expenses: { count: expenseCount, total: totalSpending },
-    income: { count: incomeCount, total: totalPayments },
-    other: { count: otherCount },
-    netChange
-  });
 
   // Calculate category breakdown - only expenses that affect budget
   const categoryMap = new Map<string, { amount: number; count: number }>();

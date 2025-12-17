@@ -1,29 +1,82 @@
-export interface Account {
+// Account types: fundamental distinction between assets and liabilities
+export const AccountType = {
+  BANK: 'BANK',           // Asset: cash accounts
+  CREDIT_CARD: 'CREDIT_CARD'  // Liability: credit card debt
+} as const;
+
+export type AccountType = typeof AccountType[keyof typeof AccountType];
+
+// Bank account subtypes
+export const BankAccountSubtype = {
+  CHEQUING: 'CHEQUING',
+  SAVINGS: 'SAVINGS',
+  CASH: 'CASH',
+  INVESTMENT_CASH: 'INVESTMENT_CASH'
+} as const;
+
+export type BankAccountSubtype = typeof BankAccountSubtype[keyof typeof BankAccountSubtype];
+
+// Base account fields (shared by all account types)
+interface BaseAccount {
   id: string;
   name: string;
-  type: 'credit' | 'debit' | 'chequing' | 'savings' | 'other';
+  accountType: AccountType;
   institution?: string;
+  currency: string;
+  isActive: boolean;
   color: string; // hex color for visual identification
   isDefault: boolean;
   createdAt: string;
 }
 
-// Transaction types: distinguish money movement from economic impact
-export enum TransactionType {
-  INFLOW = 'INFLOW',       // increases net worth
-  EXPENSE = 'EXPENSE',     // decreases net worth
-  TRANSFER = 'TRANSFER',   // moves money between user accounts, net-zero
-  ADJUSTMENT = 'ADJUSTMENT' // reconciliation or correction
+// Bank account (asset)
+export interface BankAccount extends BaseAccount {
+  accountType: typeof AccountType.BANK;
+  subtype: BankAccountSubtype;
+  currentBalance?: number;        // cash on hand
+  availableBalance?: number;
+  interestRateApr?: number;
 }
 
-// Income classification for INFLOW transactions
-export enum IncomeClass {
-  EARNED = 'EARNED',             // salary, wages
-  PASSIVE = 'PASSIVE',           // interest, dividends, cashback
-  REIMBURSEMENT = 'REIMBURSEMENT', // refunds, insurance reimbursements
-  WINDFALL = 'WINDFALL',         // gifts, settlements
-  ADJUSTMENT = 'ADJUSTMENT'       // corrections
+// Credit card account (liability)
+export interface CreditCardAccount extends BaseAccount {
+  accountType: typeof AccountType.CREDIT_CARD;
+  issuer?: string;
+  creditLimit?: number;
+  currentBalance?: number;        // amount owed (positive debt)
+  availableCredit?: number;       // credit_limit - current_balance
+  statementDay?: number;          // day of month statement closes
+  dueDay?: number;                // day of month payment is due
+  aprPurchase?: number;
+  aprCashAdvance?: number;
+  aprPenalty?: number;
+  minPayment?: number;
+  paymentStatus?: 'OK' | 'DUE_SOON' | 'OVERDUE';
 }
+
+// Union type for all accounts
+export type Account = BankAccount | CreditCardAccount;
+
+// Transaction types: distinguish money movement from economic impact
+export const TransactionType = {
+  INFLOW: 'INFLOW',       // increases net worth
+  EXPENSE: 'EXPENSE',     // decreases net worth
+  TRANSFER: 'TRANSFER',   // moves money between user accounts, net-zero
+  ADJUSTMENT: 'ADJUSTMENT' // reconciliation or correction
+} as const;
+
+export type TransactionType = typeof TransactionType[keyof typeof TransactionType];
+
+// Income classification for INFLOW transactions
+export const IncomeClass = {
+  EARNED: 'EARNED',             // salary, wages
+  PASSIVE: 'PASSIVE',           // interest, dividends, cashback
+  REIMBURSEMENT: 'REIMBURSEMENT', // refunds, insurance reimbursements
+  WINDFALL: 'WINDFALL',         // gifts, settlements
+  ADJUSTMENT: 'ADJUSTMENT'       // corrections
+} as const;
+
+export type IncomeClass = typeof IncomeClass[keyof typeof IncomeClass];
 
 export interface Transaction {
   id: string;

@@ -9,6 +9,11 @@ export interface CategorizationResult {
   incomeClass?: IncomeClass; // Only for INFLOW transactions
 }
 
+interface CategorizationResponse {
+  category: string;
+  incomeClass?: IncomeClass;
+}
+
 export async function categorizeTransactions(
   apiKey: string,
   transactions: Transaction[]
@@ -44,7 +49,8 @@ Important context:
 - OVERLIMIT FEE, INTEREST CHARGE are fees and interest`;
 
     const expenseResults = await callClaude(client, expensePrompt);
-    for (const [desc, category] of Object.entries(expenseResults)) {
+    for (const [desc, value] of Object.entries(expenseResults)) {
+      const category = typeof value === 'string' ? value : (value as CategorizationResponse).category;
       results[desc] = { category };
     }
   }
@@ -70,15 +76,16 @@ Examples:
 
     const inflowResults = await callClaude(client, inflowPrompt);
     for (const [desc, value] of Object.entries(inflowResults)) {
-      if (typeof value === 'object' && value !== null) {
+      if (typeof value === 'object' && value !== null && 'category' in value) {
+        const response = value as CategorizationResponse;
         results[desc] = {
-          category: (value as any).category,
-          incomeClass: (value as any).incomeClass as IncomeClass,
+          category: response.category,
+          incomeClass: response.incomeClass || IncomeClass.EARNED,
         };
       } else {
         // Fallback if AI returns simple string
         results[desc] = {
-          category: value as string,
+          category: String(value),
           incomeClass: IncomeClass.EARNED, // Default
         };
       }
@@ -88,7 +95,7 @@ Examples:
   return results;
 }
 
-async function callClaude(client: Anthropic, prompt: string): Promise<Record<string, any>> {
+async function callClaude(client: Anthropic, prompt: string): Promise<Record<string, string | CategorizationResponse>> {
   try {
     const response = await client.messages.create({
       model: MODEL,
@@ -101,8 +108,21 @@ async function callClaude(client: Anthropic, prompt: string): Promise<Record<str
       ],
     });
 
+    // Validate response structure
+    if (!response.content || response.content.length === 0) {
+      throw new Error('Empty response from Claude API');
+    }
+
     const content = response.content[0];
+    if (!content) {
+      throw new Error('No content in Claude API response');
+    }
+
     if (content.type === 'text') {
+      if (!content.text) {
+        throw new Error('Empty text content in Claude API response');
+      }
+
       let textToParse = content.text;
 
       // Remove markdown code blocks if present
@@ -113,7 +133,6 @@ async function callClaude(client: Anthropic, prompt: string): Promise<Record<str
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
-          console.log('Successfully parsed categorizations:', parsed);
           return parsed;
         } catch (parseError) {
           console.error('JSON parse error:', parseError);
@@ -161,8 +180,20 @@ Context: This is for a family of four in Ottawa, Canada with a monthly spending 
       ],
     });
 
+    // Validate response structure
+    if (!response.content || response.content.length === 0) {
+      throw new Error('Empty response from Claude API');
+    }
+
     const content = response.content[0];
+    if (!content) {
+      throw new Error('No content in Claude API response');
+    }
+
     if (content.type === 'text') {
+      if (!content.text) {
+        throw new Error('Empty text content in Claude API response');
+      }
       return content.text;
     }
 

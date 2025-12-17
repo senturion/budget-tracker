@@ -1,6 +1,6 @@
 import Dexie, { type Table } from 'dexie';
-import type { Transaction, MerchantRule, Budget, AppSettings, Account } from '../types';
-import { TransactionType, IncomeClass } from '../types';
+import type { Transaction, MerchantRule, Budget, AppSettings, Account, BankAccount, CreditCardAccount } from '../types';
+import { TransactionType, IncomeClass, AccountType, BankAccountSubtype } from '../types';
 
 class BudgetTrackerDatabase extends Dexie {
   transactions!: Table<Transaction>;
@@ -53,10 +53,12 @@ class BudgetTrackerDatabase extends Dexie {
       })
       .upgrade(async (tx) => {
         // Create default account for existing data
-        const defaultAccount: Account = {
+        const defaultAccount: CreditCardAccount = {
           id: 'default-account',
           name: 'Default Account',
-          type: 'credit',
+          accountType: AccountType.CREDIT_CARD,
+          currency: 'CAD',
+          isActive: true,
           color: '#f59e0b',
           isDefault: true,
           createdAt: new Date().toISOString(),
@@ -123,6 +125,65 @@ class BudgetTrackerDatabase extends Dexie {
           }
 
           await tx.table('transactions').update(transaction.id, updates);
+        }
+      });
+
+    // Migrate accounts to new schema with AccountType distinction
+    this.version(5)
+      .stores({
+        transactions: 'id, accountId, toAccountId, type, date, category, merchant, amount, importedAt, affectsBudget',
+        merchantRules: '++id, pattern, category',
+        budgets: 'id, category, accountId',
+        settings: 'id',
+        accounts: 'id, name, accountType, isDefault, isActive',
+      })
+      .upgrade(async (tx) => {
+        // Migrate existing accounts to new schema
+        const oldAccounts = await tx.table('accounts').toArray();
+
+        for (const oldAccount of oldAccounts) {
+          // Determine account type from old 'type' field
+          const isCreditCard = oldAccount.type === 'credit';
+
+          if (isCreditCard) {
+            // Migrate to credit card account
+            const creditCardAccount: CreditCardAccount = {
+              id: oldAccount.id,
+              name: oldAccount.name,
+              accountType: AccountType.CREDIT_CARD,
+              institution: oldAccount.institution,
+              currency: 'CAD',
+              isActive: true,
+              color: oldAccount.color,
+              isDefault: oldAccount.isDefault,
+              createdAt: oldAccount.createdAt,
+              // Credit card specific fields - will be filled in by user later
+              issuer: oldAccount.institution,
+              creditLimit: undefined,
+              currentBalance: undefined,
+              availableCredit: undefined,
+            };
+            await tx.table('accounts').put(creditCardAccount);
+          } else {
+            // Migrate to bank account
+            const bankAccount: BankAccount = {
+              id: oldAccount.id,
+              name: oldAccount.name,
+              accountType: AccountType.BANK,
+              subtype: oldAccount.type === 'chequing' ? BankAccountSubtype.CHEQUING :
+                       oldAccount.type === 'savings' ? BankAccountSubtype.SAVINGS :
+                       BankAccountSubtype.CHEQUING, // default to chequing
+              institution: oldAccount.institution,
+              currency: 'CAD',
+              isActive: true,
+              color: oldAccount.color,
+              isDefault: oldAccount.isDefault,
+              createdAt: oldAccount.createdAt,
+              currentBalance: undefined,
+              availableBalance: undefined,
+            };
+            await tx.table('accounts').put(bankAccount);
+          }
         }
       });
   }
@@ -292,13 +353,46 @@ export async function exportData(): Promise<string> {
 }
 
 export async function importData(jsonData: string): Promise<void> {
-  const data = JSON.parse(jsonData);
+  // Parse and validate JSON
+  let data;
+  try {
+    data = JSON.parse(jsonData);
+  } catch (error) {
+    throw new Error('Invalid JSON format. Please check your backup file.');
+  }
 
-  if (data.settings) await saveSettings(data.settings);
-  if (data.accounts) await db.accounts.bulkAdd(data.accounts);
-  if (data.transactions) await db.transactions.bulkAdd(data.transactions);
-  if (data.merchantRules) await db.merchantRules.bulkAdd(data.merchantRules);
-  if (data.budgets) await db.budgets.bulkPut(data.budgets);
+  // Validate data structure
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid backup data structure.');
+  }
+
+  // Import data in a transaction to ensure atomicity
+  try {
+    await db.transaction('rw', [db.settings, db.accounts, db.transactions, db.merchantRules, db.budgets], async () => {
+      if (data.settings) {
+        await saveSettings(data.settings);
+      }
+
+      if (data.accounts && Array.isArray(data.accounts)) {
+        // Use bulkPut instead of bulkAdd to handle duplicates
+        await db.accounts.bulkPut(data.accounts);
+      }
+
+      if (data.transactions && Array.isArray(data.transactions)) {
+        await db.transactions.bulkPut(data.transactions);
+      }
+
+      if (data.merchantRules && Array.isArray(data.merchantRules)) {
+        await db.merchantRules.bulkPut(data.merchantRules);
+      }
+
+      if (data.budgets && Array.isArray(data.budgets)) {
+        await db.budgets.bulkPut(data.budgets);
+      }
+    });
+  } catch (error) {
+    throw new Error(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}. Your data has not been modified.`);
+  }
 }
 
 export async function clearTransactions(): Promise<void> {
