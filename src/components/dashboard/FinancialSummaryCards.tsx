@@ -8,12 +8,14 @@ interface FinancialSummaryCardsProps {
   summary: FinancialSummary;
   previousPeriodChange?: number;
   account?: Account; // Current account being viewed (if filtered)
+  onTransactionTypeClick?: (type: string) => void;
 }
 
 export const FinancialSummaryCards: React.FC<FinancialSummaryCardsProps> = ({
   summary,
   previousPeriodChange,
-  account
+  account,
+  onTransactionTypeClick
 }) => {
   const savingsRate = summary.income.total > 0
     ? ((summary.netWorthChange / summary.income.total) * 100).toFixed(1)
@@ -74,7 +76,10 @@ export const FinancialSummaryCards: React.FC<FinancialSummaryCardsProps> = ({
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Total Income (Earned + Passive) OR Payments (for credit) */}
-          <Card>
+          <Card
+            onClick={() => onTransactionTypeClick?.('INFLOW')}
+            className="cursor-pointer hover:shadow-glow-md transition-all"
+          >
             <div className="flex flex-col">
               <span className="text-sm text-text-secondary mb-1">
                 {isCreditAccount ? 'Total Payments' : 'Total Income'}
@@ -107,7 +112,10 @@ export const FinancialSummaryCards: React.FC<FinancialSummaryCardsProps> = ({
           </Card>
 
           {/* Total Expenses OR Charges (for credit) */}
-          <Card>
+          <Card
+            onClick={() => onTransactionTypeClick?.('EXPENSE')}
+            className="cursor-pointer hover:shadow-glow-md transition-all"
+          >
             <div className="flex flex-col">
               <span className="text-sm text-text-secondary mb-1">
                 {isCreditAccount ? 'Total Charges' : 'Total Expenses'}
@@ -175,7 +183,10 @@ export const FinancialSummaryCards: React.FC<FinancialSummaryCardsProps> = ({
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Reimbursements & Windfalls */}
-          <Card>
+          <Card
+            onClick={() => onTransactionTypeClick?.('INFLOW')}
+            className="cursor-pointer hover:shadow-glow-md transition-all"
+          >
             <div className="flex flex-col">
               <span className="text-sm text-text-secondary mb-1">
                 Reimbursements & Windfalls
@@ -201,7 +212,10 @@ export const FinancialSummaryCards: React.FC<FinancialSummaryCardsProps> = ({
           </Card>
 
           {/* Transfers */}
-          <Card>
+          <Card
+            onClick={() => onTransactionTypeClick?.('TRANSFER')}
+            className="cursor-pointer hover:shadow-glow-md transition-all"
+          >
             <div className="flex flex-col">
               <span className="text-sm text-text-secondary mb-1">Transfers</span>
               <span className="text-xl font-bold font-mono text-text-primary">
@@ -217,7 +231,10 @@ export const FinancialSummaryCards: React.FC<FinancialSummaryCardsProps> = ({
           </Card>
 
           {/* Adjustments */}
-          <Card>
+          <Card
+            onClick={() => onTransactionTypeClick?.('ADJUSTMENT')}
+            className="cursor-pointer hover:shadow-glow-md transition-all"
+          >
             <div className="flex flex-col">
               <span className="text-sm text-text-secondary mb-1">Adjustments</span>
               <span className="text-xl font-bold font-mono text-text-primary">

@@ -13,7 +13,7 @@ import { Button } from '../common/Button';
 import type { CategorySpending } from '../../types';
 
 export const Dashboard: React.FC = () => {
-  const { transactions, budgets, selectedMonth, selectedAccountId, accounts, setSelectedMonth, setCurrentView, setTransactionCategoryFilter } = useStore();
+  const { transactions, budgets, selectedMonth, selectedAccountId, accounts, setSelectedMonth, setCurrentView, setTransactionCategoryFilter, setTransactionTypeFilter } = useStore();
 
   const filteredTransactions = useMemo(
     () => filterTransactionsByAccount(transactions, selectedAccountId),
@@ -98,6 +98,13 @@ export const Dashboard: React.FC = () => {
 
   const handleCategoryClick = (category: string) => {
     setTransactionCategoryFilter(category);
+    setTransactionTypeFilter(null);
+    setCurrentView('transactions');
+  };
+
+  const handleTransactionTypeClick = (type: string) => {
+    setTransactionCategoryFilter(null);
+    setTransactionTypeFilter(type);
     setCurrentView('transactions');
   };
 
@@ -139,6 +146,7 @@ export const Dashboard: React.FC = () => {
         summary={summary}
         previousPeriodChange={previousPeriodChange}
         account={currentAccount}
+        onTransactionTypeClick={handleTransactionTypeClick}
       />
 
       {budgetStatuses.length > 0 && (
@@ -158,7 +166,10 @@ export const Dashboard: React.FC = () => {
           budgetStatuses={budgetStatuses}
           onCategoryClick={handleCategoryClick}
         />
-        <IncomeBreakdown transactions={currentMonthTransactions} />
+        <IncomeBreakdown
+          transactions={currentMonthTransactions}
+          onIncomeClick={() => handleTransactionTypeClick('INFLOW')}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
