@@ -20,8 +20,6 @@ const ACCOUNT_COLORS = [
 export function AccountManagement() {
   const { accounts, addAccount, updateAccount, removeAccount, setDefaultAccount } = useStore();
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null); // For full edit mode
 
   // Form state
@@ -240,22 +238,6 @@ export function AccountManagement() {
     }
   };
 
-  const handleStartEdit = (account: Account) => {
-    setEditingId(account.id);
-    setEditName(account.name);
-  };
-
-  const handleSaveEdit = async (id: string) => {
-    if (editName.trim()) {
-      await updateAccount(id, { name: editName.trim() });
-      setEditingId(null);
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditingId(null);
-    setEditName('');
-  };
 
   const getAccountDisplayInfo = (account: Account): string => {
     if (account.accountType === AccountType.BANK) {
@@ -543,24 +525,10 @@ export function AccountManagement() {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      {editingId === account.id ? (
-                        <input
-                          type="text"
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveEdit(account.id);
-                            if (e.key === 'Escape') handleCancelEdit();
-                          }}
-                          className="px-2 py-1 bg-background-alt border border-border rounded text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-primary"
-                          autoFocus
-                        />
-                      ) : (
-                        <h4 className="font-medium text-text-primary">{account.name}</h4>
-                      )}
+                      <h4 className="font-medium text-text-primary">{account.name}</h4>
                       {account.isDefault && (
-                        <span className="px-2 py-0.5 text-xs bg-primary/20 text-primary rounded">
-                          Default
+                        <span className="text-amber-400 text-lg" title="Default account">
+                          ★
                         </span>
                       )}
                     </div>
@@ -571,52 +539,27 @@ export function AccountManagement() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {editingId === account.id ? (
-                    <>
-                      <button
-                        onClick={() => handleSaveEdit(account.id)}
-                        className="text-xs px-3 py-1 rounded bg-primary hover:bg-primary/80 text-background-alt transition-colors"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="text-xs px-3 py-1 rounded bg-muted hover:bg-muted/80 text-text-primary transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => loadAccountForEdit(account)}
-                        className="text-xs px-3 py-1 rounded bg-primary hover:bg-primary/80 text-background-alt transition-colors"
-                      >
-                        Edit Details
-                      </button>
-                      <button
-                        onClick={() => handleStartEdit(account)}
-                        className="text-xs px-3 py-1 rounded bg-muted hover:bg-muted/80 text-text-primary transition-colors"
-                      >
-                        Rename
-                      </button>
-                      {!account.isDefault && (
-                        <button
-                          onClick={() => handleSetDefault(account.id)}
-                          className="text-xs px-3 py-1 rounded bg-muted hover:bg-muted/80 text-text-primary transition-colors"
-                        >
-                          Set Default
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDelete(account.id)}
-                        className="text-xs px-3 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
-                        disabled={accounts.length === 1}
-                      >
-                        Delete
-                      </button>
-                    </>
+                  <button
+                    onClick={() => loadAccountForEdit(account)}
+                    className="text-xs px-3 py-1 rounded bg-primary hover:bg-primary/80 text-background-alt transition-colors"
+                  >
+                    Edit
+                  </button>
+                  {!account.isDefault && (
+                    <button
+                      onClick={() => handleSetDefault(account.id)}
+                      className="text-xs px-3 py-1 rounded bg-muted hover:bg-muted/80 text-text-primary transition-colors"
+                    >
+                      Set Default
+                    </button>
                   )}
+                  <button
+                    onClick={() => handleDelete(account.id)}
+                    className="text-xs px-3 py-1 rounded bg-red-500/20 hover:bg-red-500/30 text-red-400 transition-colors"
+                    disabled={accounts.length === 1}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
             </div>
