@@ -177,7 +177,7 @@ export function getTopMerchants(transactions: Transaction[], limit: number = 10)
       merchantMap.set(tx.merchant, {
         totalSpent: existing.totalSpent + tx.amount,
         count: existing.count + 1,
-        category: tx.category,
+        category: tx.category || 'Uncategorized',
         lastTransaction: tx.date > existing.lastTransaction ? tx.date : existing.lastTransaction,
       });
     });

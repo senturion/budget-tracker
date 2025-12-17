@@ -1,5 +1,4 @@
 import type { Transaction, CategorySpending, SpendingSummary } from '../types';
-import { TransactionType, IncomeClass } from '../types';
 import { affectsSpending, affectsIncome } from './transactionValidation';
 
 export function calculateSpendingSummary(

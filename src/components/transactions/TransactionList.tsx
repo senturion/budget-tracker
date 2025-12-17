@@ -297,7 +297,6 @@ export const TransactionList: React.FC = () => {
       // Process in batches of 50 to avoid overwhelming the API
       const batchSize = 50;
       let categorizedCount = 0;
-      const categories = settings.defaultCategories;
 
       for (let i = 0; i < txToRecategorize.length; i += batchSize) {
         const batch = txToRecategorize.slice(i, i + batchSize);

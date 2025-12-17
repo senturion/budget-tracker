@@ -1,6 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Card } from '../common/Card';
-import { Button } from '../common/Button';
 import { parseCSV, detectDuplicates } from '../../services/csvParser';
 import { categorizeTransactions } from '../../services/claude';
 import { addTransactions, addMerchantRule, findMerchantRule } from '../../services/storage';

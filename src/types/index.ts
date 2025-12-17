@@ -9,21 +9,25 @@ export interface Account {
 }
 
 // Transaction types: distinguish money movement from economic impact
-export enum TransactionType {
-  INFLOW = 'INFLOW',       // increases net worth
-  EXPENSE = 'EXPENSE',     // decreases net worth
-  TRANSFER = 'TRANSFER',   // moves money between user accounts, net-zero
-  ADJUSTMENT = 'ADJUSTMENT' // reconciliation or correction
-}
+export const TransactionType = {
+  INFLOW: 'INFLOW',       // increases net worth
+  EXPENSE: 'EXPENSE',     // decreases net worth
+  TRANSFER: 'TRANSFER',   // moves money between user accounts, net-zero
+  ADJUSTMENT: 'ADJUSTMENT' // reconciliation or correction
+} as const;
+
+export type TransactionType = typeof TransactionType[keyof typeof TransactionType];
 
 // Income classification for INFLOW transactions
-export enum IncomeClass {
-  EARNED = 'EARNED',             // salary, wages
-  PASSIVE = 'PASSIVE',           // interest, dividends, cashback
-  REIMBURSEMENT = 'REIMBURSEMENT', // refunds, insurance reimbursements
-  WINDFALL = 'WINDFALL',         // gifts, settlements
-  ADJUSTMENT = 'ADJUSTMENT'       // corrections
-}
+export const IncomeClass = {
+  EARNED: 'EARNED',             // salary, wages
+  PASSIVE: 'PASSIVE',           // interest, dividends, cashback
+  REIMBURSEMENT: 'REIMBURSEMENT', // refunds, insurance reimbursements
+  WINDFALL: 'WINDFALL',         // gifts, settlements
+  ADJUSTMENT: 'ADJUSTMENT'       // corrections
+} as const;
+
+export type IncomeClass = typeof IncomeClass[keyof typeof IncomeClass];
 
 export interface Transaction {
   id: string;
