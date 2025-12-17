@@ -125,17 +125,24 @@ export function getCategoryTrends(transactions: Transaction[], monthsBack: numbe
     }));
 
     const total = months.reduce((sum, m) => sum + m.amount, 0);
-    const average = total / months.length;
+    const average = months.length > 0 ? total / months.length : 0;
 
     // Simple trend calculation: compare first half to second half
-    const midpoint = Math.floor(months.length / 2);
-    const firstHalfAvg = months.slice(0, midpoint).reduce((sum, m) => sum + m.amount, 0) / midpoint;
-    const secondHalfAvg = months.slice(midpoint).reduce((sum, m) => sum + m.amount, 0) / (months.length - midpoint);
-
     let trend: 'up' | 'down' | 'stable' = 'stable';
-    const changePercent = ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100;
-    if (changePercent > 10) trend = 'up';
-    else if (changePercent < -10) trend = 'down';
+
+    if (months.length >= 2) {
+      const midpoint = Math.floor(months.length / 2);
+      const firstHalfSum = months.slice(0, midpoint).reduce((sum, m) => sum + m.amount, 0);
+      const secondHalfSum = months.slice(midpoint).reduce((sum, m) => sum + m.amount, 0);
+      const firstHalfAvg = midpoint > 0 ? firstHalfSum / midpoint : 0;
+      const secondHalfAvg = (months.length - midpoint) > 0 ? secondHalfSum / (months.length - midpoint) : 0;
+
+      if (firstHalfAvg > 0) {
+        const changePercent = ((secondHalfAvg - firstHalfAvg) / firstHalfAvg) * 100;
+        if (changePercent > 10) trend = 'up';
+        else if (changePercent < -10) trend = 'down';
+      }
+    }
 
     return {
       category,

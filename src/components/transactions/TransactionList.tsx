@@ -30,7 +30,11 @@ export const TransactionList: React.FC = () => {
   );
 
   const categories = useMemo(() => {
-    const cats = new Set(accountFilteredTransactions.map((tx) => tx.category));
+    const cats = new Set(
+      accountFilteredTransactions
+        .map((tx) => tx.category)
+        .filter((cat): cat is string => cat !== null)
+    );
     return Array.from(cats).sort();
   }, [accountFilteredTransactions]);
 
@@ -221,13 +225,24 @@ export const TransactionList: React.FC = () => {
       updates.affectsBudget = true;
     }
 
-    for (const txId of selectedTransactionIds) {
-      await updateTransactionInDb(txId, updates);
-      updateTransaction(txId, updates);
-    }
+    try {
+      // Update all transactions in database first (in parallel)
+      await Promise.all(
+        Array.from(selectedTransactionIds).map(txId =>
+          updateTransactionInDb(txId, updates)
+        )
+      );
 
-    setSelectedTransactionIds(new Set());
-    setShowBulkEditModal(false);
+      // Only update store after all DB updates succeed
+      selectedTransactionIds.forEach(txId => {
+        updateTransaction(txId, updates);
+      });
+
+      setSelectedTransactionIds(new Set());
+      setShowBulkEditModal(false);
+    } catch (error) {
+      alert(`Failed to update transactions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleBulkCategoryChange = async (newCategory: string) => {
@@ -236,13 +251,24 @@ export const TransactionList: React.FC = () => {
       categorySource: 'manual' as const,
     };
 
-    for (const txId of selectedTransactionIds) {
-      await updateTransactionInDb(txId, updates);
-      updateTransaction(txId, updates);
-    }
+    try {
+      // Update all transactions in database first (in parallel)
+      await Promise.all(
+        Array.from(selectedTransactionIds).map(txId =>
+          updateTransactionInDb(txId, updates)
+        )
+      );
 
-    setSelectedTransactionIds(new Set());
-    setShowBulkEditModal(false);
+      // Only update store after all DB updates succeed
+      selectedTransactionIds.forEach(txId => {
+        updateTransaction(txId, updates);
+      });
+
+      setSelectedTransactionIds(new Set());
+      setShowBulkEditModal(false);
+    } catch (error) {
+      alert(`Failed to update transactions: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleRecategorizeAll = async () => {
@@ -282,23 +308,26 @@ export const TransactionList: React.FC = () => {
           `Categorizing batch ${batchNum}/${totalBatches} (${batch.length} transactions)...`
         );
 
-        const descriptions = batch.map(tx => tx.description);
-
         try {
           const categorizations = await categorizeTransactions(
             settings.apiKey,
-            descriptions,
-            categories
+            batch
           );
 
           // Apply categorizations for this batch
           for (const tx of batch) {
-            const category = categorizations[tx.description];
-            if (category && category !== tx.category) {
-              const updates = {
-                category,
+            const result = categorizations[tx.description];
+            if (result && result.category && result.category !== tx.category) {
+              const updates: Partial<Transaction> = {
+                category: result.category,
                 categorySource: 'ai' as const,
               };
+
+              // Update incomeClass if this is an INFLOW transaction
+              if (tx.type === 'INFLOW' && result.incomeClass) {
+                updates.incomeClass = result.incomeClass;
+              }
+
               await updateTransactionInDb(tx.id, updates);
               updateTransaction(tx.id, updates);
               categorizedCount++;
@@ -306,7 +335,7 @@ export const TransactionList: React.FC = () => {
               // Create/update merchant rule
               await addMerchantRule({
                 pattern: tx.merchant,
-                category,
+                category: result.category,
                 createdAt: new Date().toISOString(),
               });
             }

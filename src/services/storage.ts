@@ -292,13 +292,46 @@ export async function exportData(): Promise<string> {
 }
 
 export async function importData(jsonData: string): Promise<void> {
-  const data = JSON.parse(jsonData);
+  // Parse and validate JSON
+  let data;
+  try {
+    data = JSON.parse(jsonData);
+  } catch (error) {
+    throw new Error('Invalid JSON format. Please check your backup file.');
+  }
 
-  if (data.settings) await saveSettings(data.settings);
-  if (data.accounts) await db.accounts.bulkAdd(data.accounts);
-  if (data.transactions) await db.transactions.bulkAdd(data.transactions);
-  if (data.merchantRules) await db.merchantRules.bulkAdd(data.merchantRules);
-  if (data.budgets) await db.budgets.bulkPut(data.budgets);
+  // Validate data structure
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid backup data structure.');
+  }
+
+  // Import data in a transaction to ensure atomicity
+  try {
+    await db.transaction('rw', [db.settings, db.accounts, db.transactions, db.merchantRules, db.budgets], async () => {
+      if (data.settings) {
+        await saveSettings(data.settings);
+      }
+
+      if (data.accounts && Array.isArray(data.accounts)) {
+        // Use bulkPut instead of bulkAdd to handle duplicates
+        await db.accounts.bulkPut(data.accounts);
+      }
+
+      if (data.transactions && Array.isArray(data.transactions)) {
+        await db.transactions.bulkPut(data.transactions);
+      }
+
+      if (data.merchantRules && Array.isArray(data.merchantRules)) {
+        await db.merchantRules.bulkPut(data.merchantRules);
+      }
+
+      if (data.budgets && Array.isArray(data.budgets)) {
+        await db.budgets.bulkPut(data.budgets);
+      }
+    });
+  } catch (error) {
+    throw new Error(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}. Your data has not been modified.`);
+  }
 }
 
 export async function clearTransactions(): Promise<void> {
