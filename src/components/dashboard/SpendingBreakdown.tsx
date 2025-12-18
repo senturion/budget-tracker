@@ -170,21 +170,21 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
         {groupedCategories.map(({ parent, subcategories }) => (
           <div key={parent.category} className="space-y-1">
             {/* Parent Category */}
-            <div className="relative">
+            <div className="flex items-stretch">
               {subcategories.length > 0 && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     toggleParent(parent.category);
                   }}
-                  className="absolute left-1 top-1/2 -translate-y-1/2 z-10 p-1 hover:bg-muted rounded"
+                  className="flex-shrink-0 px-2 hover:bg-muted rounded-l transition-colors flex items-center"
                 >
                   <span className="text-text-tertiary text-sm">
                     {expandedParents.has(parent.category) ? '▼' : '▶'}
                   </span>
                 </button>
               )}
-              <div className={subcategories.length > 0 ? 'ml-6' : ''}>
+              <div className="flex-1">
                 {renderCategoryCard(parent, false)}
               </div>
             </div>

@@ -53,6 +53,12 @@ export const CreditCardDashboard: React.FC<CreditCardDashboardProps> = ({ accoun
     setSelectedMonth(new Date());
   };
 
+  const handleCategoryClick = (category: string) => {
+    setTransactionCategoryFilter(category);
+    setTransactionTypeFilter(null);
+    setCurrentView('transactions');
+  };
+
   const getUtilizationColor = (utilization: number) => {
     if (utilization >= 90) return 'text-negative';
     if (utilization >= 70) return 'text-amber-500';
@@ -310,7 +316,11 @@ export const CreditCardDashboard: React.FC<CreditCardDashboardProps> = ({ accoun
         <Card title="Spending by Category">
           <div className="space-y-3">
             {categoryBreakdown.slice(0, 10).map((cat) => (
-              <div key={cat.category}>
+              <div
+                key={cat.category}
+                className="cursor-pointer hover:bg-muted/50 p-2 -m-2 rounded-lg transition-colors"
+                onClick={() => handleCategoryClick(cat.category)}
+              >
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-medium text-text-primary">{cat.category}</span>
                   <div className="flex items-center gap-3">

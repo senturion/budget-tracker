@@ -14,7 +14,7 @@ interface BankAccountDashboardProps {
 
 export const BankAccountDashboard: React.FC<BankAccountDashboardProps> = ({ account }) => {
   console.log('BankAccountDashboard: Rendering with account', account);
-  const { transactions, selectedMonth, setSelectedMonth, setCurrentView } = useStore();
+  const { transactions, selectedMonth, setSelectedMonth, setCurrentView, setTransactionCategoryFilter, setTransactionTypeFilter } = useStore();
   console.log('BankAccountDashboard: transactions count', transactions.length);
 
   const filteredTransactions = useMemo(
@@ -53,6 +53,12 @@ export const BankAccountDashboard: React.FC<BankAccountDashboardProps> = ({ acco
 
   const handleCurrentMonth = () => {
     setSelectedMonth(new Date());
+  };
+
+  const handleCategoryClick = (category: string) => {
+    setTransactionCategoryFilter(category);
+    setTransactionTypeFilter(null);
+    setCurrentView('transactions');
   };
 
   const subtypeLabel = account.subtype
@@ -208,7 +214,11 @@ export const BankAccountDashboard: React.FC<BankAccountDashboardProps> = ({ acco
         <Card title="Spending by Category">
           <div className="space-y-3">
             {categoryBreakdown.slice(0, 10).map((cat) => (
-              <div key={cat.category}>
+              <div
+                key={cat.category}
+                className="cursor-pointer hover:bg-muted/50 p-2 -m-2 rounded-lg transition-colors"
+                onClick={() => handleCategoryClick(cat.category)}
+              >
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-medium text-text-primary">{cat.category}</span>
                   <div className="flex items-center gap-3">

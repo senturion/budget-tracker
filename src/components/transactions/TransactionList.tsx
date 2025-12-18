@@ -62,7 +62,7 @@ function getTransactionLabel(tx: Transaction, accounts: Account[]): string {
 }
 
 export const TransactionList: React.FC = () => {
-  const { transactions, selectedAccountId, transactionCategoryFilter, transactionTypeFilter, setTransactionCategoryFilter, setTransactionTypeFilter, updateTransaction, settings, loadData, accounts, budgets } = useStore();
+  const { transactions, selectedAccountId, transactionCategoryFilter, transactionTypeFilter, setTransactionCategoryFilter, setTransactionTypeFilter, updateTransaction, settings, loadData, accounts, budgets, selectedMonth, setSelectedMonth } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -74,7 +74,6 @@ export const TransactionList: React.FC = () => {
   const [recategorizeStatus, setRecategorizeStatus] = useState<string>('');
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [selectedParentCategory, setSelectedParentCategory] = useState<string>('');
 
   const accountFilteredTransactions = useMemo(
