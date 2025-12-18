@@ -13,7 +13,7 @@ export const UploadZone: React.FC = () => {
   const [preview, setPreview] = useState<Transaction[]>([]);
   const [uploadAccountId, setUploadAccountId] = useState<string | null>(null);
 
-  const { settings, transactions, accounts, addTransactions: addToStore, loadData } = useStore();
+  const { settings, transactions, accounts, budgets, addTransactions: addToStore, loadData } = useStore();
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -99,18 +99,38 @@ export const UploadZone: React.FC = () => {
           setStatus(`Categorizing ${uncategorized.length} transactions with AI...`);
 
           try {
+            // Get categories from settings (user's custom categories)
+            const userCategories = settings.defaultCategories && settings.defaultCategories.length > 0 ? {
+              expense: settings.defaultCategories.filter(c => !c.startsWith('Income:')),
+              income: settings.defaultCategories.filter(c => c.startsWith('Income:'))
+            } : undefined;
+
             const categorizations = await categorizeTransactions(
               settings.apiKey,
-              uncategorized
+              uncategorized,
+              userCategories
             );
 
             // Apply categorizations and create merchant rules
             let categorizedCount = 0;
             for (const tx of uncategorized) {
               const result = categorizations[tx.description];
-              if (result && result.category) {
-                tx.category = result.category;
-                tx.categorySource = 'ai';
+              if (result) {
+                // Update transaction type if AI detected a different type
+                if (result.transactionType) {
+                  tx.type = result.transactionType;
+                  // TRANSFER and ADJUSTMENT don't have categories and don't affect budget
+                  if (result.transactionType === 'TRANSFER' || result.transactionType === 'ADJUSTMENT') {
+                    tx.category = null;
+                    tx.affectsBudget = false;
+                  }
+                }
+
+                // Set category if provided
+                if (result.category) {
+                  tx.category = result.category;
+                  tx.categorySource = 'ai';
+                }
 
                 // Set income class for INFLOW transactions
                 if (result.incomeClass) {

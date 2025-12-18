@@ -60,7 +60,7 @@ function getTransactionLabel(tx: Transaction, accounts: Account[]): string {
 }
 
 export const TransactionList: React.FC = () => {
-  const { transactions, selectedAccountId, transactionCategoryFilter, transactionTypeFilter, setTransactionCategoryFilter, setTransactionTypeFilter, updateTransaction, settings, loadData, accounts } = useStore();
+  const { transactions, selectedAccountId, transactionCategoryFilter, transactionTypeFilter, setTransactionCategoryFilter, setTransactionTypeFilter, updateTransaction, settings, loadData, accounts, budgets } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState<'date' | 'amount'>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -358,35 +358,60 @@ export const TransactionList: React.FC = () => {
         );
 
         try {
+          // Get categories from settings (user's custom categories)
+          const userCategories = settings.defaultCategories && settings.defaultCategories.length > 0 ? {
+            expense: settings.defaultCategories.filter(c => !c.startsWith('Income:')),
+            income: settings.defaultCategories.filter(c => c.startsWith('Income:'))
+          } : undefined;
+
           const categorizations = await categorizeTransactions(
             settings.apiKey,
-            batch
+            batch,
+            userCategories
           );
 
           // Apply categorizations for this batch
           for (const tx of batch) {
             const result = categorizations[tx.description];
-            if (result && result.category && result.category !== tx.category) {
-              const updates: Partial<Transaction> = {
-                category: result.category,
-                categorySource: 'ai' as const,
-              };
+            if (result) {
+              const updates: Partial<Transaction> = {};
+
+              // Update transaction type if AI detected a different type
+              if (result.transactionType && result.transactionType !== tx.type) {
+                updates.type = result.transactionType;
+                // TRANSFER and ADJUSTMENT don't have categories and don't affect budget
+                if (result.transactionType === 'TRANSFER' || result.transactionType === 'ADJUSTMENT') {
+                  updates.category = null;
+                  updates.affectsBudget = false;
+                }
+              }
+
+              // Update category if provided and different
+              if (result.category && result.category !== tx.category) {
+                updates.category = result.category;
+                updates.categorySource = 'ai' as const;
+              }
 
               // Update incomeClass if this is an INFLOW transaction
               if (tx.type === 'INFLOW' && result.incomeClass) {
                 updates.incomeClass = result.incomeClass;
               }
 
-              await updateTransactionInDb(tx.id, updates);
-              updateTransaction(tx.id, updates);
-              categorizedCount++;
+              // Only update if there are changes
+              if (Object.keys(updates).length > 0) {
+                await updateTransactionInDb(tx.id, updates);
+                updateTransaction(tx.id, updates);
+                categorizedCount++;
 
-              // Create/update merchant rule
-              await addMerchantRule({
-                pattern: tx.merchant,
-                category: result.category,
-                createdAt: new Date().toISOString(),
-              });
+                // Create/update merchant rule only if we have a category
+                if (result.category) {
+                  await addMerchantRule({
+                    pattern: tx.merchant,
+                    category: result.category,
+                    createdAt: new Date().toISOString(),
+                  });
+                }
+              }
             }
           }
         } catch (batchError) {

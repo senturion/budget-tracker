@@ -7,17 +7,23 @@ const MODEL = 'claude-sonnet-4-5-20250929';
 export interface CategorizationResult {
   category: string;
   incomeClass?: IncomeClass; // Only for INFLOW transactions
+  transactionType?: TransactionType; // Optional type override (e.g., for TRANSFER or ADJUSTMENT)
 }
 
 interface CategorizationResponse {
   category: string;
   incomeClass?: IncomeClass;
+  transactionType?: TransactionType;
 }
 
 export async function categorizeTransactions(
   apiKey: string,
-  transactions: Transaction[]
+  transactions: Transaction[],
+  userCategories?: { expense: string[]; income: string[] }
 ): Promise<Record<string, CategorizationResult>> {
+  // Use provided categories or fall back to defaults
+  const expenseCategories = userCategories?.expense || EXPENSE_CATEGORIES;
+  const incomeCategories = userCategories?.income || INCOME_CATEGORIES;
   const client = new Anthropic({
     apiKey,
     dangerouslyAllowBrowser: true, // Required for browser usage
@@ -31,27 +37,44 @@ export async function categorizeTransactions(
 
   // Categorize expenses
   if (expenses.length > 0) {
-    const expensePrompt = `Categorize these EXPENSE transactions into the provided categories. Return only valid JSON.
+    const expensePrompt = `Categorize these EXPENSE transactions and detect their actual transaction type. Return only valid JSON.
 
-Categories: ${EXPENSE_CATEGORIES.join(', ')}
+Categories: ${expenseCategories.join(', ')}
+
+Transaction Types:
+- EXPENSE: Normal spending (default)
+- TRANSFER: Payment to another account (e.g., "PAYMENT - THANK YOU", credit card payments)
+- ADJUSTMENT: Account corrections, reconciliations, balance adjustments
 
 Transactions:
 ${expenses.map((t) => `- ${t.description}`).join('\n')}
 
-Return format: {"transaction_description": "Category", ...}
-Include every transaction. Use "Other" if unsure.
+Return format:
+- For normal expenses: {"transaction_description": "Category"}
+- For transfers/adjustments: {"transaction_description": {"category": null, "transactionType": "TRANSFER"}}
+
+Include every transaction. Use "Other" if unsure about category.
 
 Important context:
 - FARM BOY, RCSS, WAL-MART, LOBLAWS are grocery stores
 - SQ *EQUATOR, SQ *BRIDGEHEAD, STARBUCKS are coffee shops
 - UBER CANADA/UBEREATS, UBER EATS are food delivery
 - American Eagle, Aerie, Old Navy are clothing stores
-- OVERLIMIT FEE, INTEREST CHARGE are fees and interest`;
+- OVERLIMIT FEE, INTEREST CHARGE are fees and interest
+- PAYMENT - THANK YOU, AUTOMATIC PAYMENT are credit card payments (TRANSFER type)
+- BALANCE ADJUSTMENT, RECONCILIATION are corrections (ADJUSTMENT type)`;
 
     const expenseResults = await callClaude(client, expensePrompt);
     for (const [desc, value] of Object.entries(expenseResults)) {
-      const category = typeof value === 'string' ? value : (value as CategorizationResponse).category;
-      results[desc] = { category };
+      if (typeof value === 'string') {
+        results[desc] = { category: value };
+      } else {
+        const response = value as CategorizationResponse;
+        results[desc] = {
+          category: response.category,
+          transactionType: response.transactionType,
+        };
+      }
     }
   }
 
@@ -60,19 +83,22 @@ Important context:
     const inflowPrompt = `Categorize these INFLOW (income/credit) transactions. For each, provide:
 1. Category from the list
 2. Income class: EARNED (salary/wages), PASSIVE (interest/dividends/cashback), REIMBURSEMENT (refunds/returns), WINDFALL (gifts), or ADJUSTMENT
+3. Transaction type override if needed: TRANSFER (for account transfers), ADJUSTMENT (for corrections), or leave as INFLOW (default)
 
-Income Categories: ${INCOME_CATEGORIES.join(', ')}
+Income Categories: ${incomeCategories.join(', ')}
 
 Transactions:
 ${inflows.map((t) => `- ${t.description}`).join('\n')}
 
-Return format: {"transaction_description": {"category": "Category Name", "incomeClass": "EARNED"}, ...}
+Return format: {"transaction_description": {"category": "Category Name", "incomeClass": "EARNED", "transactionType": "INFLOW"}, ...}
 
 Examples:
 - "PAYMENT - SALARY" -> {"category": "Income: Salary", "incomeClass": "EARNED"}
 - "REFUND - AMAZON" -> {"category": "Amazon", "incomeClass": "REIMBURSEMENT"}
 - "CASHBACK REWARD" -> {"category": "Cashback", "incomeClass": "PASSIVE"}
-- "INTEREST PAYMENT" -> {"category": "Interest", "incomeClass": "PASSIVE"}`;
+- "INTEREST PAYMENT" -> {"category": "Interest", "incomeClass": "PASSIVE"}
+- "TRANSFER FROM SAVINGS" -> {"category": null, "transactionType": "TRANSFER"}
+- "BALANCE CORRECTION" -> {"category": null, "transactionType": "ADJUSTMENT"}`;
 
     const inflowResults = await callClaude(client, inflowPrompt);
     for (const [desc, value] of Object.entries(inflowResults)) {
@@ -81,6 +107,7 @@ Examples:
         results[desc] = {
           category: response.category,
           incomeClass: response.incomeClass || IncomeClass.EARNED,
+          transactionType: response.transactionType,
         };
       } else {
         // Fallback if AI returns simple string
