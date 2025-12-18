@@ -9,6 +9,8 @@ import type { Transaction, Account } from '../../types';
 import { TransactionType, IncomeClass, AccountType } from '../../types';
 import { updateTransaction as updateTransactionInDb, addMerchantRule, updateMerchantInAllTransactions } from '../../services/storage';
 import { categorizeTransactions } from '../../services/claude';
+import CategoryPicker from '../shared/CategoryPicker';
+import { parseCategory } from '../../utils/categoryHelpers';
 
 /**
  * Get semantic label for transaction based on type and account context
@@ -73,20 +75,52 @@ export const TransactionList: React.FC = () => {
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<Set<string>>(new Set());
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  const [selectedParentCategory, setSelectedParentCategory] = useState<string>('');
 
   const accountFilteredTransactions = useMemo(
     () => filterTransactionsByAccount(transactions, selectedAccountId),
     [transactions, selectedAccountId]
   );
 
-  const categories = useMemo(() => {
+  // Get all parent categories
+  const parentCategories = useMemo(() => {
     const cats = new Set(
       accountFilteredTransactions
         .map((tx) => tx.category)
         .filter((cat): cat is string => cat !== null)
     );
-    return Array.from(cats).sort();
+
+    const parents = new Set<string>();
+    Array.from(cats).forEach(cat => {
+      const { parent } = parseCategory(cat);
+      if (parent) {
+        parents.add(parent);
+      }
+    });
+
+    return Array.from(parents).sort();
   }, [accountFilteredTransactions]);
+
+  // Get subcategories for the selected parent
+  const subcategories = useMemo(() => {
+    if (!selectedParentCategory) return [];
+
+    const cats = new Set(
+      accountFilteredTransactions
+        .map((tx) => tx.category)
+        .filter((cat): cat is string => cat !== null)
+    );
+
+    const subs: string[] = [];
+    Array.from(cats).forEach(cat => {
+      const { parent, subcategory } = parseCategory(cat);
+      if (parent === selectedParentCategory && subcategory) {
+        subs.push(subcategory);
+      }
+    });
+
+    return subs.sort();
+  }, [accountFilteredTransactions, selectedParentCategory]);
 
   const filteredTransactions = useMemo(() => {
     let filtered = accountFilteredTransactions;
@@ -107,8 +141,21 @@ export const TransactionList: React.FC = () => {
       );
     }
 
-    if (transactionCategoryFilter) {
-      filtered = filtered.filter((tx) => tx.category === transactionCategoryFilter);
+    // Filter by category using the two-dropdown system
+    if (selectedParentCategory) {
+      filtered = filtered.filter((tx) => {
+        if (!tx.category) return false;
+
+        const { parent: txParent } = parseCategory(tx.category);
+
+        // If a specific subcategory is selected via the old filter, use exact match
+        if (transactionCategoryFilter && transactionCategoryFilter.includes(' > ')) {
+          return tx.category === transactionCategoryFilter;
+        }
+
+        // Otherwise, filter by parent category (includes all subcategories)
+        return txParent === selectedParentCategory;
+      });
     }
 
     if (transactionTypeFilter) {
@@ -136,7 +183,7 @@ export const TransactionList: React.FC = () => {
     });
 
     return filtered;
-  }, [accountFilteredTransactions, searchTerm, transactionCategoryFilter, transactionTypeFilter, sortField, sortDirection, selectedMonth]);
+  }, [accountFilteredTransactions, searchTerm, transactionCategoryFilter, transactionTypeFilter, sortField, sortDirection, selectedMonth, selectedParentCategory]);
 
   const handleSort = (field: 'date' | 'amount') => {
     if (sortField === field) {
@@ -167,6 +214,24 @@ export const TransactionList: React.FC = () => {
     const now = new Date();
     return selectedMonth.getFullYear() === now.getFullYear() &&
            selectedMonth.getMonth() === now.getMonth();
+  };
+
+  const handleParentCategoryChange = (parent: string) => {
+    setSelectedParentCategory(parent);
+    // Reset subcategory filter when parent changes
+    if (transactionCategoryFilter && transactionCategoryFilter.includes(' > ')) {
+      setTransactionCategoryFilter(null);
+    }
+  };
+
+  const handleSubcategoryChange = (sub: string) => {
+    if (sub === '') {
+      // "All" selected - show all subcategories of parent
+      setTransactionCategoryFilter(null);
+    } else {
+      // Specific subcategory selected
+      setTransactionCategoryFilter(`${selectedParentCategory} > ${sub}`);
+    }
   };
 
   const handleCategoryChange = async (newCategory: string) => {
@@ -477,17 +542,31 @@ export const TransactionList: React.FC = () => {
             className="flex-1 px-4 py-2 bg-background-alt/50 backdrop-blur-sm border border-border rounded text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
           />
           <select
-            value={transactionCategoryFilter || ''}
-            onChange={(e) => setTransactionCategoryFilter(e.target.value || null)}
+            value={selectedParentCategory}
+            onChange={(e) => handleParentCategoryChange(e.target.value)}
             className="px-4 py-2 bg-background-alt/50 backdrop-blur-sm border border-border rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
           >
             <option value="">All Categories</option>
-            {categories.map((cat) => (
+            {parentCategories.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
               </option>
             ))}
           </select>
+          {selectedParentCategory && subcategories.length > 0 && (
+            <select
+              value={transactionCategoryFilter?.includes(' > ') ? transactionCategoryFilter.split(' > ')[1] : ''}
+              onChange={(e) => handleSubcategoryChange(e.target.value)}
+              className="px-4 py-2 bg-background-alt/50 backdrop-blur-sm border border-border rounded text-text-primary focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+            >
+              <option value="">All {selectedParentCategory}</option>
+              {subcategories.map((sub) => (
+                <option key={sub} value={sub}>
+                  {sub}
+                </option>
+              ))}
+            </select>
+          )}
           <select
             value={transactionTypeFilter || ''}
             onChange={(e) => setTransactionTypeFilter(e.target.value || null)}
@@ -734,20 +813,12 @@ export const TransactionList: React.FC = () => {
               </>
             )}
             {!editingMerchant && !editingType && (
-              <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-                {(settings?.defaultCategories || []).map((category) => (
-                  <Button
-                    key={category}
-                    variant={
-                      editingTransaction.category === category ? 'primary' : 'secondary'
-                    }
-                    onClick={() => handleCategoryChange(category)}
-                    className="justify-start text-left"
-                  >
-                    {category}
-                  </Button>
-                ))}
-              </div>
+              <CategoryPicker
+                categories={settings?.defaultCategories || []}
+                value={editingTransaction.category || ''}
+                onChange={handleCategoryChange}
+                placeholder="Select a category..."
+              />
             )}
             <p className="text-xs text-text-secondary mt-4 italic">
               💡 Tip: This will create a rule to auto-categorize future transactions from this merchant
@@ -795,18 +866,12 @@ export const TransactionList: React.FC = () => {
 
           <div className="border-t border-border pt-6">
             <h3 className="text-sm font-semibold text-text-primary mb-3">Change Category</h3>
-            <div className="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
-              {(settings?.defaultCategories || []).map((category) => (
-                <Button
-                  key={category}
-                  variant="secondary"
-                  onClick={() => handleBulkCategoryChange(category)}
-                  className="justify-start text-left"
-                >
-                  {category}
-                </Button>
-              ))}
-            </div>
+            <CategoryPicker
+              categories={settings?.defaultCategories || []}
+              value=""
+              onChange={handleBulkCategoryChange}
+              placeholder="Select a category to apply to all selected transactions..."
+            />
           </div>
 
           <div className="border-t border-border pt-6 flex gap-3">
