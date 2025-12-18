@@ -5,13 +5,13 @@ import { Button } from '../common/Button';
 import { testApiKey } from '../../services/claude';
 import { exportData, importData, clearAllData, clearTransactions, setLastBackupDate, createAutomaticBackup } from '../../services/storage';
 import { AccountManagement } from './AccountManagement';
+import CategoryEditor from './CategoryEditor';
 
 export const Settings: React.FC = () => {
   const { settings, saveSettings, loadData, budgets, addBudget, removeBudget } = useStore();
   const [apiKey, setApiKey] = useState('');
   const [isTestingKey, setIsTestingKey] = useState(false);
   const [keyTestResult, setKeyTestResult] = useState<'success' | 'error' | null>(null);
-  const [newCategory, setNewCategory] = useState('');
   const [budgetCategory, setBudgetCategory] = useState('');
   const [budgetLimit, setBudgetLimit] = useState('');
   const [budgetThreshold, setBudgetThreshold] = useState('80');
@@ -135,35 +135,6 @@ export const Settings: React.FC = () => {
     alert('All data cleared successfully');
   };
 
-  const handleAddCategory = async () => {
-    if (!settings || !newCategory.trim()) return;
-
-    const trimmedCategory = newCategory.trim();
-    if (settings.defaultCategories.includes(trimmedCategory)) {
-      alert('Category already exists');
-      return;
-    }
-
-    await saveSettings({
-      ...settings,
-      defaultCategories: [...settings.defaultCategories, trimmedCategory],
-    });
-    setNewCategory('');
-  };
-
-  const handleRemoveCategory = async (categoryToRemove: string) => {
-    if (!settings) return;
-
-    if (!confirm(`Remove "${categoryToRemove}" category? Existing transactions will keep this category.`)) {
-      return;
-    }
-
-    await saveSettings({
-      ...settings,
-      defaultCategories: settings.defaultCategories.filter(cat => cat !== categoryToRemove),
-    });
-  };
-
   const handleAddBudget = async () => {
     if (!budgetCategory || !budgetLimit) return;
 
@@ -268,43 +239,14 @@ export const Settings: React.FC = () => {
         </Card>
 
         <Card title="Categories">
-          <div className="space-y-4">
-            <p className="text-text-secondary text-sm">Manage your transaction categories:</p>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleAddCategory()}
-                placeholder="New category name..."
-                className="flex-1 px-4 py-2 bg-background-alt/50 backdrop-blur-sm border border-border rounded text-text-primary placeholder-text-secondary focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-              />
-              <Button onClick={handleAddCategory} disabled={!newCategory.trim()}>
-                Add Category
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {settings?.defaultCategories.map((category) => (
-                <div
-                  key={category}
-                  className="group flex items-center gap-2 px-3 py-1 bg-primary/20 backdrop-blur-sm text-primary rounded border border-primary/30 hover:border-primary transition-all"
-                >
-                  <span className="text-sm font-medium">{category}</span>
-                  <button
-                    onClick={() => handleRemoveCategory(category)}
-                    className="opacity-0 group-hover:opacity-100 text-primary hover:text-primary-light transition-all"
-                    title="Remove category"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
+          <CategoryEditor
+            categories={settings?.defaultCategories || []}
+            onChange={async (newCategories) => {
+              if (settings) {
+                await saveSettings({ ...settings, defaultCategories: newCategories });
+              }
+            }}
+          />
         </Card>
 
         <Card title="Monthly Budgets">
