@@ -658,6 +658,41 @@ export async function clearTransactions(): Promise<void> {
   await db.transactions.clear();
 }
 
+export async function clearMerchantRules(): Promise<void> {
+  await db.merchantRules.clear();
+}
+
+export async function fixCreditCardTransfers(): Promise<number> {
+  // Fix TRANSFER transactions on credit cards to have toAccountId set
+  const allTransactions = await db.transactions.toArray();
+  const allAccounts = await db.accounts.toArray();
+
+  const creditCardIds = new Set(
+    allAccounts
+      .filter(acc => acc.accountType === 'CREDIT_CARD')
+      .map(acc => acc.id)
+  );
+
+  let fixedCount = 0;
+
+  for (const tx of allTransactions) {
+    // Find TRANSFER transactions on credit card accounts that don't have toAccountId set
+    if (
+      tx.type === 'TRANSFER' &&
+      creditCardIds.has(tx.accountId) &&
+      !tx.toAccountId
+    ) {
+      // Set toAccountId to the credit card account (the account being paid)
+      await db.transactions.update(tx.id, {
+        toAccountId: tx.accountId
+      });
+      fixedCount++;
+    }
+  }
+
+  return fixedCount;
+}
+
 export async function clearAllData(): Promise<void> {
   await db.transactions.clear();
   await db.merchantRules.clear();

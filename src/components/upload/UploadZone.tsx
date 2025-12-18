@@ -5,6 +5,7 @@ import { categorizeTransactions } from '../../services/claude';
 import { addTransactions, addMerchantRule, findMerchantRule } from '../../services/storage';
 import { useStore } from '../../store';
 import type { Transaction } from '../../types';
+import { AccountType } from '../../types';
 
 export const UploadZone: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
@@ -111,6 +112,9 @@ export const UploadZone: React.FC = () => {
               userCategories
             );
 
+            // Get the account being uploaded to
+            const currentAccount = accounts.find(a => a.id === accountId);
+
             // Apply categorizations and create merchant rules
             let categorizedCount = 0;
             for (const tx of uncategorized) {
@@ -123,6 +127,12 @@ export const UploadZone: React.FC = () => {
                   if (result.transactionType === 'TRANSFER' || result.transactionType === 'ADJUSTMENT') {
                     tx.category = null;
                     tx.affectsBudget = false;
+
+                    // For credit card payments (TRANSFER on a credit card account),
+                    // set toAccountId to the credit card being paid
+                    if (result.transactionType === 'TRANSFER' && currentAccount?.accountType === AccountType.CREDIT_CARD) {
+                      tx.toAccountId = accountId;
+                    }
                   }
                 }
 

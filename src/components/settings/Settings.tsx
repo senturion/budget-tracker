@@ -3,7 +3,7 @@ import { useStore } from '../../store';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
 import { testApiKey } from '../../services/claude';
-import { exportData, importData, clearAllData, clearTransactions, setLastBackupDate, createAutomaticBackup } from '../../services/storage';
+import { exportData, importData, clearAllData, clearTransactions, clearMerchantRules, fixCreditCardTransfers, setLastBackupDate, createAutomaticBackup } from '../../services/storage';
 import { AccountManagement } from './AccountManagement';
 import CategoryEditor from './CategoryEditor';
 
@@ -94,6 +94,40 @@ export const Settings: React.FC = () => {
     await clearTransactions();
     await loadData();
     alert('All transactions have been cleared. You can now re-upload your CSV files.');
+  };
+
+  const handleClearMerchantRules = async () => {
+    if (
+      !confirm(
+        '⚠️ WARNING: This will delete all merchant rules!\n\n' +
+        'This will remove all automatic categorization rules you\'ve created.\n' +
+        'Future transaction uploads will use AI categorization with your current categories.\n\n' +
+        'Click OK to delete all merchant rules, or Cancel to abort.'
+      )
+    ) {
+      return;
+    }
+
+    await clearMerchantRules();
+    await loadData();
+    alert('All merchant rules have been cleared. AI categorization will now use your current categories.');
+  };
+
+  const handleFixCreditCardTransfers = async () => {
+    if (
+      !confirm(
+        'Fix Credit Card Payment Tracking\n\n' +
+        'This will update all TRANSFER transactions on credit cards to properly track payments.\n' +
+        'This fixes the "Payments Made" display on credit card dashboards.\n\n' +
+        'Click OK to fix payment tracking, or Cancel to abort.'
+      )
+    ) {
+      return;
+    }
+
+    const fixedCount = await fixCreditCardTransfers();
+    await loadData();
+    alert(`Fixed ${fixedCount} credit card payment transaction(s). Your credit card dashboard should now show payments correctly.`);
   };
 
   const handleClearData = async () => {
@@ -347,6 +381,26 @@ export const Settings: React.FC = () => {
               </p>
               <Button variant="secondary" onClick={handleImport}>
                 Import Data
+              </Button>
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <h4 className="font-medium text-text-primary mb-2">Fix Credit Card Payments</h4>
+              <p className="text-sm text-text-secondary mb-3">
+                Update credit card payment transfers to display correctly in dashboards. Run this if "Payments Made" shows $0.
+              </p>
+              <Button variant="secondary" onClick={handleFixCreditCardTransfers}>
+                Fix Credit Card Payments
+              </Button>
+            </div>
+
+            <div className="border-t border-border pt-4">
+              <h4 className="font-medium text-text-primary mb-2">Clear Merchant Rules</h4>
+              <p className="text-sm text-text-secondary mb-3">
+                Delete all merchant categorization rules. This will force AI to re-categorize transactions using your current categories.
+              </p>
+              <Button variant="secondary" onClick={handleClearMerchantRules}>
+                Clear Merchant Rules
               </Button>
             </div>
 
