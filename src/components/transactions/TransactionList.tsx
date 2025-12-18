@@ -495,6 +495,105 @@ export const TransactionList: React.FC = () => {
     }
   };
 
+  const handleRecategorizeSelected = async () => {
+    if (!settings?.apiKey) {
+      setRecategorizeStatus('⚠️ No API key configured. Please add one in Settings.');
+      return;
+    }
+
+    if (selectedTransactionIds.size === 0) {
+      setRecategorizeStatus('⚠️ No transactions selected.');
+      return;
+    }
+
+    if (!confirm(`This will recategorize ${selectedTransactionIds.size} selected transaction(s) using AI. Continue?`)) {
+      return;
+    }
+
+    setIsRecategorizing(true);
+    setRecategorizeStatus(`Categorizing ${selectedTransactionIds.size} selected transaction(s)...`);
+
+    try {
+      // Get selected transactions
+      const selectedTxs = transactions.filter(tx => selectedTransactionIds.has(tx.id));
+
+      if (selectedTxs.length === 0) {
+        setRecategorizeStatus('No transactions to categorize.');
+        setIsRecategorizing(false);
+        return;
+      }
+
+      // Get categories from settings
+      const userCategories = settings.defaultCategories && settings.defaultCategories.length > 0 ? {
+        expense: settings.defaultCategories.filter(c => !c.startsWith('Income:')),
+        income: settings.defaultCategories.filter(c => c.startsWith('Income:'))
+      } : undefined;
+
+      const categorizations = await categorizeTransactions(
+        settings.apiKey,
+        selectedTxs,
+        userCategories
+      );
+
+      // Apply categorizations
+      let categorizedCount = 0;
+      for (const tx of selectedTxs) {
+        const result = categorizations[tx.description];
+        if (result) {
+          const updates: Partial<Transaction> = {};
+
+          // Update transaction type if AI detected a different type
+          if (result.transactionType && result.transactionType !== tx.type) {
+            updates.type = result.transactionType;
+            // TRANSFER and ADJUSTMENT don't have categories and don't affect budget
+            if (result.transactionType === 'TRANSFER' || result.transactionType === 'ADJUSTMENT') {
+              updates.category = null;
+              updates.affectsBudget = false;
+            }
+          }
+
+          // Update category if provided and different
+          if (result.category && result.category !== tx.category) {
+            updates.category = result.category;
+            updates.categorySource = 'ai' as const;
+          }
+
+          // Update incomeClass if this is an INFLOW transaction
+          if (tx.type === 'INFLOW' && result.incomeClass) {
+            updates.incomeClass = result.incomeClass;
+          }
+
+          // Only update if there are changes
+          if (Object.keys(updates).length > 0) {
+            await updateTransactionInDb(tx.id, updates);
+            updateTransaction(tx.id, updates);
+            categorizedCount++;
+
+            // Create/update merchant rule only if we have a category
+            if (result.category) {
+              await addMerchantRule({
+                pattern: tx.merchant,
+                category: result.category,
+                createdAt: new Date().toISOString(),
+              });
+            }
+          }
+        }
+      }
+
+      setRecategorizeStatus(`✓ Successfully recategorized ${categorizedCount} of ${selectedTxs.length} transaction(s)!`);
+      setTimeout(() => setRecategorizeStatus(''), 5000);
+
+      // Clear selection after successful recategorization
+      setSelectedTransactionIds(new Set());
+    } catch (error) {
+      console.error('Recategorization failed:', error);
+      setRecategorizeStatus(`❌ Failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsRecategorizing(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto">
       <h1 className="text-3xl font-display font-bold mb-6 text-text-primary">Transactions</h1>
@@ -585,12 +684,21 @@ export const TransactionList: React.FC = () => {
             {isRecategorizing ? 'Categorizing...' : 'Recategorize All with AI'}
           </Button>
           {selectedTransactionIds.size > 0 && (
-            <Button
-              onClick={() => setShowBulkEditModal(true)}
-              variant="primary"
-            >
-              Edit {selectedTransactionIds.size} Selected
-            </Button>
+            <>
+              <Button
+                onClick={handleRecategorizeSelected}
+                disabled={isRecategorizing}
+                variant="secondary"
+              >
+                {isRecategorizing ? 'Categorizing...' : `Recategorize ${selectedTransactionIds.size} Selected`}
+              </Button>
+              <Button
+                onClick={() => setShowBulkEditModal(true)}
+                variant="primary"
+              >
+                Edit {selectedTransactionIds.size} Selected
+              </Button>
+            </>
           )}
         </div>
         <div className="flex items-center justify-between">

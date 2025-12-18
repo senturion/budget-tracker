@@ -22,8 +22,14 @@ export async function categorizeTransactions(
   userCategories?: { expense: string[]; income: string[] }
 ): Promise<Record<string, CategorizationResult>> {
   // Use provided categories or fall back to defaults
-  const expenseCategories = userCategories?.expense || EXPENSE_CATEGORIES;
-  const incomeCategories = userCategories?.income || INCOME_CATEGORIES;
+  // Note: Use nullish coalescing and explicit length check to handle empty arrays correctly
+  const expenseCategories = (userCategories?.expense && userCategories.expense.length > 0)
+    ? userCategories.expense
+    : EXPENSE_CATEGORIES;
+  const incomeCategories = (userCategories?.income && userCategories.income.length > 0)
+    ? userCategories.income
+    : INCOME_CATEGORIES;
+
   const client = new Anthropic({
     apiKey,
     dangerouslyAllowBrowser: true, // Required for browser usage
