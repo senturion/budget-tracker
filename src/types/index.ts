@@ -91,12 +91,16 @@ export interface Transaction {
   // Transaction details
   date: string; // ISO date
   description: string;
-  merchant: string; // cleaned/normalized merchant name
+  merchantId: string; // Reference to Merchant entity
   amount: number; // always positive, represents magnitude
 
   // Categorization (ONLY for EXPENSE and INFLOW)
+  // Supports hierarchical categories via delimiter (e.g., "Food > Restaurants > Fast Food")
   category: string | null; // null for TRANSFER and ADJUSTMENT
   categorySource?: 'ai' | 'manual' | 'rule'; // only meaningful when category exists
+
+  // Tags (denormalized for performance - array of tag IDs)
+  tags?: string[];
 
   // Income classification (ONLY for INFLOW)
   incomeClass?: IncomeClass;
@@ -108,21 +112,84 @@ export interface Transaction {
   // Metadata
   importedAt: string;
   sourceFile: string;
+
+  // Deprecated field - kept for backwards compatibility during migration
+  merchant?: string;
+}
+
+// Merchant entity - first-class merchant management
+export interface Merchant {
+  id: string;
+  name: string; // Display name
+  aliases: string[]; // Alternative names for CSV import matching
+  category?: string; // Default category for this merchant
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MerchantRule {
-  pattern: string;
+  id: string;
+  merchantId: string; // Link to Merchant entity
   category: string;
   createdAt: string;
 }
 
+// Tag system for cross-cutting classification
+export interface Tag {
+  id: string;
+  name: string;
+  color: string; // Pre-defined color from TAG_COLORS
+  createdAt: string;
+}
+
+// Junction table for many-to-many transaction-tag relationship
+export interface TransactionTag {
+  transactionId: string;
+  tagId: string;
+}
+
+// Pre-defined tag colors
+export const TAG_COLORS = [
+  '#ef4444', // red
+  '#f97316', // orange
+  '#f59e0b', // amber
+  '#eab308', // yellow
+  '#84cc16', // lime
+  '#22c55e', // green
+  '#10b981', // emerald
+  '#14b8a6', // teal
+  '#06b6d4', // cyan
+  '#0ea5e9', // sky
+  '#3b82f6', // blue
+  '#6366f1', // indigo
+  '#8b5cf6', // violet
+  '#a855f7', // purple
+  '#d946ef', // fuchsia
+  '#ec4899', // pink
+] as const;
+
+// Budget types for different organizational dimensions
+export const BudgetType = {
+  CATEGORY: 'CATEGORY',         // Top-level category
+  SUBCATEGORY: 'SUBCATEGORY',   // Specific subcategory
+  TAG: 'TAG',                   // Tag-based budget
+  MERCHANT: 'MERCHANT'          // Merchant-specific budget
+} as const;
+
+export type BudgetType = typeof BudgetType[keyof typeof BudgetType];
+
 export interface Budget {
   id: string;
-  category: string;
+  type: BudgetType; // What type of budget this is
+  targetId: string; // category name, tag id, or merchant id
   monthlyLimit: number;
   alertThreshold: number; // percentage, e.g., 80
   accountId?: string; // optional - if set, budget applies to specific account only
   createdAt: string;
+
+  // Deprecated field - kept for backwards compatibility during migration
+  category?: string;
 }
 
 export interface BudgetStatus {
