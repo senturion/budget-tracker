@@ -195,7 +195,7 @@ class BudgetTrackerDatabase extends Dexie {
     this.version(6)
       .stores({
         transactions: 'id, accountId, toAccountId, type, date, category, merchantId, amount, importedAt, affectsBudget, *tags',
-        merchantRules: 'id, merchantId, category',
+        merchantRules: '++id, merchantId, category', // Keep auto-increment to avoid primary key change error
         budgets: 'id, type, targetId, accountId',
         settings: 'id',
         accounts: 'id, name, accountType, isDefault, isActive',

@@ -129,7 +129,7 @@ export interface Merchant {
 }
 
 export interface MerchantRule {
-  id: string;
+  id?: number; // Auto-increment primary key (optional for adding new rules)
   merchantId: string; // Link to Merchant entity
   category: string;
   createdAt: string;
