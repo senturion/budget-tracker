@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database Migration Test</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #00ff00;
+    }
+    #output {
+      white-space: pre-wrap;
+      background: #000;
+      padding: 20px;
+      border: 1px solid #00ff00;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .success { color: #00ff00; }
+    .error { color: #ff0000; }
+    .warning { color: #ffaa00; }
+    .info { color: #00aaff; }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      font-family: monospace;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #00cc00;
+    }
+  </style>
+</head>
+<body>
+  <h1>Database Migration Test - v6</h1>
+  <div>
+    <button onclick="testMigration()">Run Migration Test</button>
+    <button onclick="inspectDatabase()">Inspect Database</button>
+    <button onclick="clearOutput()">Clear Output</button>
+  </div>
+  <div id="output"></div>
+
+  <script type="module">
+    import Dexie from 'https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.mjs';
+
+    const output = document.getElementById('output');
+
+    function log(message, type = 'info') {
+      const span = document.createElement('span');
+      span.className = type;
+      span.textContent = `[${new Date().toISOString()}] ${message}\n`;
+      output.appendChild(span);
+      output.scrollTop = output.scrollHeight;
+    }
+
+    window.clearOutput = () => {
+      output.innerHTML = '';
+    };
+
+    window.testMigration = async () => {
+      try {
+        log('=== Starting Database Migration Test ===', 'info');
+
+        // Import the database module
+        log('Opening database...', 'info');
+
+        // We'll create a test version of the database
+        const db = new Dexie('BudgetTrackerDB');
+
+        // Check current version
+        const currentVersion = await Dexie.getDatabaseNames()
+          .then(() => db.open())
+          .then(() => db.verno)
+          .catch(() => 0);
+
+        log(`Current database version: ${currentVersion}`, 'info');
+
+        if (currentVersion === 6) {
+          log('✓ Database already at v6', 'success');
+
+          // Check tables exist
+          const tables = db.tables.map(t => t.name);
+          log(`Tables: ${tables.join(', ')}`, 'info');
+
+          const requiredTables = ['merchants', 'tags', 'transactionTags'];
+          const hasTables = requiredTables.every(t => tables.includes(t));
+
+          if (hasTables) {
+            log('✓ All required tables exist', 'success');
+          } else {
+            log('✗ Missing required tables', 'error');
+          }
+
+          await db.close();
+        } else {
+          log(`Database at v${currentVersion}, migration will run on next app load`, 'warning');
+          await db.close();
+        }
+
+        log('=== Test Complete ===', 'success');
+
+      } catch (error) {
+        log(`✗ Error: ${error.message}`, 'error');
+        console.error(error);
+      }
+    };
+
+    window.inspectDatabase = async () => {
+      try {
+        log('=== Inspecting Database ===', 'info');
+
+        const db = new Dexie('BudgetTrackerDB');
+        await db.open();
+
+        log(`Database version: ${db.verno}`, 'info');
+        log(`Tables: ${db.tables.map(t => t.name).join(', ')}`, 'info');
+
+        // Count records in each table
+        for (const table of db.tables) {
+          try {
+            const count = await table.count();
+            log(`  ${table.name}: ${count} records`, 'info');
+          } catch (err) {
+            log(`  ${table.name}: Error counting - ${err.message}`, 'error');
+          }
+        }
+
+        // Sample merchants
+        if (db.tables.find(t => t.name === 'merchants')) {
+          const merchants = await db.table('merchants').limit(5).toArray();
+          log(`\nSample Merchants (first 5):`, 'info');
+          merchants.forEach(m => {
+            log(`  - ${m.name} (aliases: ${m.aliases?.join(', ')})`, 'info');
+          });
+        }
+
+        // Sample tags
+        if (db.tables.find(t => t.name === 'tags')) {
+          const tags = await db.table('tags').toArray();
+          log(`\nTags (${tags.length} total):`, 'info');
+          tags.forEach(t => {
+            log(`  - ${t.name} (${t.color})`, 'info');
+          });
+        }
+
+        // Check transactions have merchantId
+        if (db.tables.find(t => t.name === 'transactions')) {
+          const txn = await db.table('transactions').limit(1).toArray();
+          if (txn[0]) {
+            log(`\nSample transaction fields:`, 'info');
+            log(`  - Has merchantId: ${!!txn[0].merchantId}`, txn[0].merchantId ? 'success' : 'error');
+            log(`  - Has tags: ${!!txn[0].tags}`, 'info');
+            log(`  - Old merchant field: ${txn[0].merchant || 'removed'}`, 'info');
+          }
+        }
+
+        await db.close();
+        log('=== Inspection Complete ===', 'success');
+
+      } catch (error) {
+        log(`✗ Error: ${error.message}`, 'error');
+        console.error(error);
+      }
+    };
+
+    // Auto-run on load
+    log('Test page loaded. Click "Run Migration Test" to begin.', 'info');
+  </script>
+</body>
+</html>
