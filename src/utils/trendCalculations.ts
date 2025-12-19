@@ -1,5 +1,6 @@
 import type { Transaction, CategorySpending } from '../types';
-import { affectsSpending, affectsIncome } from './transactionValidation';
+import { affectsSpending } from './transactionValidation';
+import { TransactionType } from '../types';
 
 export interface MonthlyTrend {
   month: string; // YYYY-MM
@@ -75,8 +76,8 @@ export function getMonthlyTrends(transactions: Transaction[], monthsBack: number
             count: existing.count + 1,
           });
         }
-      } else if (affectsIncome(tx)) {
-        // Only count EARNED and PASSIVE income as "payments"
+      } else if (tx.type === TransactionType.TRANSFER) {
+        // Count TRANSFER transactions as payments (e.g., credit card payments)
         totalPayments += tx.amount;
       }
     });

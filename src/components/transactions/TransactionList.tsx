@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore } from '../../store';
 import { Card } from '../common/Card';
 import { Button } from '../common/Button';
@@ -120,6 +120,16 @@ export const TransactionList: React.FC = () => {
 
     return subs.sort();
   }, [accountFilteredTransactions, selectedParentCategory]);
+
+  // Sync category filter from store (e.g., when clicking from Trends page)
+  useEffect(() => {
+    if (transactionCategoryFilter) {
+      const { parent } = parseCategory(transactionCategoryFilter);
+      if (parent && parent !== selectedParentCategory) {
+        setSelectedParentCategory(parent);
+      }
+    }
+  }, [transactionCategoryFilter]);
 
   const filteredTransactions = useMemo(() => {
     let filtered = accountFilteredTransactions;

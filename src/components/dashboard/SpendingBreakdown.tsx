@@ -83,7 +83,13 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
     });
   };
 
-  const renderCategoryCard = (category: CategorySpending, isSubcategory: boolean = false) => {
+  const renderCategoryCard = (
+    category: CategorySpending,
+    isSubcategory: boolean = false,
+    hasSubcategories: boolean = false,
+    isExpanded: boolean = false,
+    onToggle?: () => void
+  ) => {
     const budgetStatus = getBudgetForCategory(category.category);
 
     return (
@@ -93,14 +99,14 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
         onClick={() => onCategoryClick?.(category.category)}
       >
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            {isSubcategory && <span className="text-text-tertiary">›</span>}
-            <span className="text-text-primary font-medium">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {isSubcategory && <span className="text-text-tertiary flex-shrink-0">›</span>}
+            <span className="text-text-primary font-medium truncate">
               {isSubcategory ? parseCategory(category.category).subcategory : category.category}
             </span>
             {budgetStatus && (
               <span
-                className={`text-xs px-2 py-0.5 rounded ${
+                className={`text-xs px-2 py-0.5 rounded flex-shrink-0 ${
                   budgetStatus.isOverBudget
                     ? 'bg-negative/20 text-negative border border-negative/30'
                     : budgetStatus.isNearLimit
@@ -116,18 +122,33 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
               </span>
             )}
           </div>
-          <div className="text-right">
-            <span className="text-text-primary font-mono font-semibold">
-              {formatCurrency(category.amount)}
-            </span>
-            {budgetStatus ? (
-              <span className="text-text-secondary text-sm ml-2">
-                / {formatCurrency(budgetStatus.budget.monthlyLimit)}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="text-right">
+              <span className="text-text-primary font-mono font-semibold">
+                {formatCurrency(category.amount)}
               </span>
-            ) : (
-              <span className="text-text-secondary text-sm ml-2">
-                ({category.percentage.toFixed(1)}%)
-              </span>
+              {budgetStatus ? (
+                <span className="text-text-secondary text-sm ml-2">
+                  / {formatCurrency(budgetStatus.budget.monthlyLimit)}
+                </span>
+              ) : (
+                <span className="text-text-secondary text-sm ml-2">
+                  ({category.percentage.toFixed(1)}%)
+                </span>
+              )}
+            </div>
+            {hasSubcategories && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle?.();
+                }}
+                className="px-2 py-1 hover:bg-muted/60 rounded transition-colors"
+              >
+                <span className="text-text-tertiary text-xs">
+                  {isExpanded ? '▼' : '▶'}
+                </span>
+              </button>
             )}
           </div>
         </div>
@@ -167,34 +188,28 @@ export const SpendingBreakdown: React.FC<SpendingBreakdownProps> = ({
   return (
     <Card title="Spending by Category">
       <div className="space-y-2">
-        {groupedCategories.map(({ parent, subcategories }) => (
-          <div key={parent.category} className="space-y-1">
-            {/* Parent Category */}
-            <div className="flex items-stretch">
-              {subcategories.length > 0 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleParent(parent.category);
-                  }}
-                  className="flex-shrink-0 px-2 hover:bg-muted rounded-l transition-colors flex items-center"
-                >
-                  <span className="text-text-tertiary text-sm">
-                    {expandedParents.has(parent.category) ? '▼' : '▶'}
-                  </span>
-                </button>
-              )}
-              <div className="flex-1">
-                {renderCategoryCard(parent, false)}
-              </div>
-            </div>
+        {groupedCategories.map(({ parent, subcategories }) => {
+          const isExpanded = expandedParents.has(parent.category);
+          const hasSubcategories = subcategories.length > 0;
 
-            {/* Subcategories */}
-            {expandedParents.has(parent.category) && subcategories.map(sub =>
-              renderCategoryCard(sub, true)
-            )}
-          </div>
-        ))}
+          return (
+            <div key={parent.category} className="space-y-1">
+              {/* Parent Category */}
+              {renderCategoryCard(
+                parent,
+                false,
+                hasSubcategories,
+                isExpanded,
+                () => toggleParent(parent.category)
+              )}
+
+              {/* Subcategories */}
+              {isExpanded && subcategories.map(sub =>
+                renderCategoryCard(sub, true, false, false)
+              )}
+            </div>
+          );
+        })}
       </div>
     </Card>
   );
