@@ -8,23 +8,34 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import type { MonthlyTrend } from '../../utils/trendCalculations';
+import type { MonthlyTrend, DailyTrend } from '../../utils/trendCalculations';
 import { formatCurrency } from '../../utils/formatters';
 
 interface Props {
-  data: MonthlyTrend[];
+  data: MonthlyTrend[] | DailyTrend[];
+  viewType?: 'daily' | 'monthly';
 }
 
-export function SpendingOverTimeChart({ data }: Props) {
-  const chartData = data.map(trend => ({
-    month: new Date(trend.month + '-01').toLocaleDateString('en-US', {
-      month: 'short',
-      year: '2-digit',
-    }),
-    spending: trend.totalSpending,
-    payments: trend.totalPayments,
-    net: trend.netChange,
-  }));
+export function SpendingOverTimeChart({ data, viewType = 'monthly' }: Props) {
+  const chartData = viewType === 'daily'
+    ? (data as DailyTrend[]).map(trend => ({
+        label: new Date(trend.date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        }),
+        spending: trend.totalSpending,
+        payments: 0, // Daily view doesn't track payments separately
+        net: 0,
+      }))
+    : (data as MonthlyTrend[]).map(trend => ({
+        label: new Date(trend.month + '-01').toLocaleDateString('en-US', {
+          month: 'short',
+          year: '2-digit',
+        }),
+        spending: trend.totalSpending,
+        payments: trend.totalPayments,
+        net: trend.netChange,
+      }));
 
   return (
     <div className="h-80">
@@ -42,7 +53,7 @@ export function SpendingOverTimeChart({ data }: Props) {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
           <XAxis
-            dataKey="month"
+            dataKey="label"
             stroke="#9ca3af"
             style={{ fontSize: '12px' }}
           />
@@ -72,15 +83,17 @@ export function SpendingOverTimeChart({ data }: Props) {
             fill="url(#colorSpending)"
             name="Spending"
           />
-          <Area
-            type="monotone"
-            dataKey="payments"
-            stroke="#10b981"
-            strokeWidth={2}
-            fillOpacity={1}
-            fill="url(#colorPayments)"
-            name="Payments"
-          />
+          {viewType === 'monthly' && (
+            <Area
+              type="monotone"
+              dataKey="payments"
+              stroke="#10b981"
+              strokeWidth={2}
+              fillOpacity={1}
+              fill="url(#colorPayments)"
+              name="Payments"
+            />
+          )}
         </AreaChart>
       </ResponsiveContainer>
     </div>

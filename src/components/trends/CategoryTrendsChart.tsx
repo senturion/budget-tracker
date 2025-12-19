@@ -55,6 +55,39 @@ export function CategoryTrendsChart({ data }: Props) {
       return monthData;
     });
 
+  // Custom tooltip to maintain category order
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload || payload.length === 0) return null;
+
+    return (
+      <div className="bg-[#1f2937] border border-[#374151] rounded-lg p-3 shadow-lg">
+        <p className="text-[#f3f4f6] font-medium mb-2">{label}</p>
+        <div className="space-y-1">
+          {/* Show categories in the same order as they appear in the data array */}
+          {data.map((cat, index) => {
+            const entry = payload.find((p: any) => p.dataKey === cat.category);
+            if (!entry || entry.value === 0) return null;
+
+            return (
+              <div key={cat.category} className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-sm"
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  />
+                  <span className="text-[#9ca3af] text-sm">{cat.category}</span>
+                </div>
+                <span className="text-[#f3f4f6] font-medium text-sm">
+                  {formatCurrency(entry.value)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="h-96">
       <ResponsiveContainer width="100%" height="100%">
@@ -70,15 +103,7 @@ export function CategoryTrendsChart({ data }: Props) {
             style={{ fontSize: '12px' }}
             tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
           />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#1f2937',
-              border: '1px solid #374151',
-              borderRadius: '8px',
-              color: '#f3f4f6',
-            }}
-            formatter={(value: number) => formatCurrency(value)}
-          />
+          <Tooltip content={<CustomTooltip />} />
           <Legend
             wrapperStyle={{ color: '#f3f4f6', fontSize: '12px' }}
           />

@@ -105,6 +105,66 @@ export function getMonthlyTrends(transactions: Transaction[], monthsBack: number
   return trends;
 }
 
+export interface DailyTrend {
+  date: string; // YYYY-MM-DD
+  dayName: string;
+  totalSpending: number;
+  transactionCount: number;
+  categoryBreakdown: CategorySpending[];
+}
+
+export function getDailyTrends(transactions: Transaction[], daysBack: number = 30): DailyTrend[] {
+  const now = new Date();
+  const trends: DailyTrend[] = [];
+
+  for (let i = daysBack - 1; i >= 0; i--) {
+    const targetDate = new Date(now);
+    targetDate.setDate(now.getDate() - i);
+    const dateKey = targetDate.toISOString().split('T')[0];
+
+    const dayTransactions = transactions.filter(tx => {
+      const txDate = new Date(tx.date);
+      return txDate.toISOString().split('T')[0] === dateKey;
+    });
+
+    const categoryMap = new Map<string, { amount: number; count: number }>();
+    let totalSpending = 0;
+
+    dayTransactions.forEach(tx => {
+      if (affectsSpending(tx)) {
+        totalSpending += tx.amount;
+        if (tx.category) {
+          const existing = categoryMap.get(tx.category) || { amount: 0, count: 0 };
+          categoryMap.set(tx.category, {
+            amount: existing.amount + tx.amount,
+            count: existing.count + 1,
+          });
+        }
+      }
+    });
+
+    const categoryBreakdown: CategorySpending[] = Array.from(categoryMap.entries())
+      .map(([category, data]) => ({
+        category,
+        amount: data.amount,
+        count: data.count,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    trends.push({
+      date: dateKey,
+      dayName: dayNames[targetDate.getDay()],
+      totalSpending,
+      transactionCount: dayTransactions.length,
+      categoryBreakdown,
+    });
+  }
+
+  return trends;
+}
+
 export function getCategoryTrends(transactions: Transaction[], monthsBack: number = 12): CategoryTrend[] {
   const monthlyTrends = getMonthlyTrends(transactions, monthsBack);
   const categoryMap = new Map<string, Map<string, number>>();
